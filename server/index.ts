@@ -195,7 +195,7 @@ function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url === "/health") {
+  if (req.url === "/" || req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok", activeRooms: rooms.size }));
     return;
