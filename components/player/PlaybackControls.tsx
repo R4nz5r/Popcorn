@@ -175,9 +175,15 @@ export default function PlaybackControls({
     };
   }, [isDraggingVolume, calculateVolumeFromEvent, onVolumeChange]);
 
+  const isDarkFs = isFullscreen;
+
   return (
     <div
-      className={`w-full bg-white rounded-2xl border border-[#d6d2c9] px-4 py-3 flex items-center gap-3 shadow-xs select-none ${className}`}
+      className={`w-full rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xs select-none transition-colors ${
+        isDarkFs
+          ? "bg-[#141413]/90 border border-white/20 text-white shadow-2xl backdrop-blur-md"
+          : "bg-white border border-[#d6d2c9] text-[#1f1f1d]"
+      } ${className}`}
     >
       {/* Play / Pause Toggle */}
       <button
@@ -185,7 +191,9 @@ export default function PlaybackControls({
         onClick={onPlayPause}
         aria-label={isPlaying ? "Pause" : "Play"}
         title={isPlaying ? "Pause" : "Play"}
-        className="p-1 flex items-center justify-center shrink-0 transition-opacity text-[#1f1f1d] hover:opacity-75 cursor-pointer"
+        className={`p-1 flex items-center justify-center shrink-0 transition-opacity hover:opacity-75 cursor-pointer ${
+          isDarkFs ? "text-white" : "text-[#1f1f1d]"
+        }`}
       >
         {isPlaying ? (
           // Pause Icon: two vertical bars
@@ -202,9 +210,13 @@ export default function PlaybackControls({
       </button>
 
       {/* Time Display (hidden on very small screens if needed, or shown in monospace) */}
-      <div className="hidden sm:flex items-center text-xs font-mono font-medium text-[#4b5563] shrink-0 tracking-tight">
+      <div
+        className={`hidden sm:flex items-center text-xs font-mono font-medium shrink-0 tracking-tight ${
+          isDarkFs ? "text-neutral-300" : "text-[#4b5563]"
+        }`}
+      >
         <span>{formatTime(displayTime, duration)}</span>
-        <span className="mx-1 text-[#9ca3af]">/</span>
+        <span className={`mx-1 ${isDarkFs ? "text-neutral-500" : "text-[#9ca3af]"}`}>/</span>
         <span>{formatTime(duration, duration)}</span>
       </div>
 
@@ -214,15 +226,21 @@ export default function PlaybackControls({
         onMouseDown={handlePointerDown}
         onTouchStart={handlePointerDown}
         title={canSeek ? "Click or drag to seek" : "Only host controls playback"}
-        className={`flex-1 py-2 group flex items-center relative touch-none ${
+        className={`flex-1 py-2.5 sm:py-2 group flex items-center relative touch-none ${
           canSeek ? "cursor-pointer" : "cursor-default"
         }`}
       >
         {/* Background track */}
-        <div className="w-full h-1.5 bg-[#d6d2c9] rounded-full overflow-hidden relative">
+        <div
+          className={`w-full h-1.5 rounded-full overflow-hidden relative ${
+            isDarkFs ? "bg-white/20" : "bg-[#d6d2c9]"
+          }`}
+        >
           {/* Progress fill */}
           <div
-            className="h-full bg-[#1f1f1d] transition-all duration-75"
+            className={`h-full transition-all duration-75 ${
+              isDarkFs ? "bg-white" : "bg-[#1f1f1d]"
+            }`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -230,21 +248,27 @@ export default function PlaybackControls({
         {/* Thumb indicator on hover or dragging (for host or when host left) */}
         {canSeek && (
           <div
-            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-[#1f1f1d] rounded-full shadow-sm transition-transform pointer-events-none ${
-              isDragging ? "scale-125" : "opacity-0 group-hover:opacity-100"
-            }`}
+            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full shadow-sm transition-transform pointer-events-none ${
+              isDarkFs ? "bg-white" : "bg-[#1f1f1d]"
+            } ${isDragging ? "scale-125" : "opacity-0 group-hover:opacity-100"}`}
             style={{ left: `${progressPercent}%` }}
           />
         )}
       </div>
 
       {/* Sound / Volume Controls */}
-      <div className="flex items-center gap-1.5 shrink-0 text-[#1f1f1d]">
+      <div
+        className={`flex items-center gap-1.5 shrink-0 ${
+          isDarkFs ? "text-white" : "text-[#1f1f1d]"
+        }`}
+      >
         <button
           type="button"
           onClick={onToggleMute}
           aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
-          className="p-1 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center text-[#1f1f1d]"
+          className={`p-1 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center ${
+            isDarkFs ? "text-white" : "text-[#1f1f1d]"
+          }`}
         >
           {isMuted || volume === 0 ? (
             // Muted speaker icon
@@ -269,7 +293,7 @@ export default function PlaybackControls({
           ref={volumeBarRef}
           onMouseDown={handleVolumePointerDown}
           onTouchStart={handleVolumePointerDown}
-          className="w-16 sm:w-20 py-2 cursor-pointer flex items-center relative group touch-none"
+          className="w-16 sm:w-20 py-2.5 sm:py-2 cursor-pointer flex items-center relative group touch-none"
           role="slider"
           aria-label="Volume slider"
           aria-valuenow={isMuted ? 0 : volume}
@@ -277,10 +301,16 @@ export default function PlaybackControls({
           aria-valuemax={100}
         >
           {/* Background track */}
-          <div className="w-full h-1.5 bg-[#d6d2c9] rounded-full overflow-hidden relative">
+          <div
+            className={`w-full h-1.5 rounded-full overflow-hidden relative ${
+              isDarkFs ? "bg-white/20" : "bg-[#d6d2c9]"
+            }`}
+          >
             {/* Volume fill */}
             <div
-              className="h-full bg-[#1f1f1d] transition-all duration-75"
+              className={`h-full transition-all duration-75 ${
+                isDarkFs ? "bg-white" : "bg-[#1f1f1d]"
+              }`}
               style={{ width: `${isMuted ? 0 : volume}%` }}
             />
           </div>
@@ -294,7 +324,9 @@ export default function PlaybackControls({
           onClick={onToggleFullscreen}
           aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
           title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-          className="p-1 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center text-[#1f1f1d] shrink-0"
+          className={`p-1 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center shrink-0 ${
+            isDarkFs ? "text-white" : "text-[#1f1f1d]"
+          }`}
         >
           {isFullscreen ? (
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

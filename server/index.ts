@@ -119,6 +119,12 @@ function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
   if (departingPeer.userId === room.hostId) {
     const stillConnected = isHostOnline(room);
     if (!stillConnected && room.peers.size > 0 && !room.hostDisconnectTimeout) {
+      // Immediately inform clients that host is offline so controls unlock without delay
+      io.to(roomId).emit("host_status", {
+        isHostOnline: false,
+        hostId: room.hostId,
+      });
+
       room.hostDisconnectTimeout = setTimeout(() => {
         room.hostDisconnectTimeout = null;
         if (!isHostOnline(room)) {
@@ -151,7 +157,7 @@ function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
             console.log(`[Host Left] Host ${room.hostId} is offline for room ${roomId}`);
           }
         }
-      }, 3000);
+      }, 1500);
     }
   }
 
@@ -250,10 +256,12 @@ io.on("connection", (socket: Socket) => {
           messages: [],
         };
         rooms.set(roomId, room);
-      } else if (roomHostId) {
-        room.hostId = roomHostId;
-      } else if (room.peers.size === 0) {
-        room.hostId = userId;
+      } else if (!room.hostId || !isHostOnline(room)) {
+        if (roomHostId) {
+          room.hostId = roomHostId;
+        } else if (room.peers.size === 0) {
+          room.hostId = userId;
+        }
       }
 
       if (data.activeVideo && !room.activeVideo) {

@@ -99,8 +99,8 @@ export default function RoomPage() {
 
   const roomHostIdRef = useRef<string | undefined>(room?.hostId);
   useEffect(() => {
-    roomHostIdRef.current = room?.hostId;
-  }, [room?.hostId]);
+    roomHostIdRef.current = liveHostId || room?.hostId;
+  }, [liveHostId, room?.hostId]);
 
   const hasLeftRef = useRef<boolean>(false);
 
@@ -641,6 +641,7 @@ export default function RoomPage() {
     const doc = document as Document & {
       webkitFullscreenElement?: Element;
       webkitExitFullscreen?: () => Promise<void> | void;
+      webkitFullscreenEnabled?: boolean;
     };
     const container = videoContainerRef.current as HTMLDivElement & {
       webkitRequestFullscreen?: () => Promise<void> | void;
@@ -649,22 +650,25 @@ export default function RoomPage() {
     const isCurrentlyFs = isNativeFs || isCssFullscreen;
 
     if (!isCurrentlyFs) {
-      // Attempt native HTML5 fullscreen first (standard on PC and Android)
-      if (container.requestFullscreen) {
+      // Check if iOS (iPhone/iPad) where HTML5 div requestFullscreen is unsupported or silent no-op
+      const isIOS =
+        typeof navigator !== "undefined" &&
+        (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+      const hasNativeFullscreen = Boolean(
+        (document.fullscreenEnabled || doc.webkitFullscreenEnabled) &&
+          !isIOS &&
+          container.requestFullscreen
+      );
+
+      if (hasNativeFullscreen && container.requestFullscreen) {
         container.requestFullscreen().catch(() => {
-          // Fallback to CSS Viewport Fullscreen (iOS Safari or permission blocked)
+          // Fallback to CSS Viewport Fullscreen (e.g. permission blocked)
           setIsCssFullscreen(true);
           setIsFullscreen(true);
         });
-      } else if (container.webkitRequestFullscreen) {
-        try {
-          container.webkitRequestFullscreen();
-        } catch {
-          setIsCssFullscreen(true);
-          setIsFullscreen(true);
-        }
       } else {
-        // Direct CSS Viewport Fullscreen fallback (e.g. iOS Safari / iPhone)
+        // Direct CSS Viewport Fullscreen (iOS Safari, mobile browsers without div fs support)
         setIsCssFullscreen(true);
         setIsFullscreen(true);
       }
@@ -685,7 +689,7 @@ export default function RoomPage() {
   const handlePlayPause = () => {
     if (!playerAdapterRef.current?.isReady()) return;
 
-    if (isHost) {
+    if (isHost || syncStatus === "host-left") {
       const targetTime = playerAdapterRef.current.getCurrentTime();
       isProgrammaticActionRef.current = true;
       if (isPlaying) {
@@ -693,7 +697,7 @@ export default function RoomPage() {
         setIsPlaying(false);
         playerAdapterRef.current.pause();
 
-        if (socketRef.current?.connected) {
+        if (socketRef.current?.connected && isHost) {
           socketRef.current.emit("pause", {
             roomId: code,
             mediaTime: targetTime,
@@ -705,7 +709,7 @@ export default function RoomPage() {
         setIsPlaying(true);
         playerAdapterRef.current.play();
 
-        if (socketRef.current?.connected) {
+        if (socketRef.current?.connected && isHost) {
           socketRef.current.emit("play", {
             roomId: code,
             mediaTime: targetTime,
@@ -1246,16 +1250,16 @@ export default function RoomPage() {
         <div
           ref={videoContainerRef}
           className={`w-full flex flex-col gap-4 transition-all duration-150 ${
-            isCssFullscreen
-              ? "fixed inset-0 z-50 bg-black flex flex-col justify-between p-3 sm:p-6 w-screen h-screen overflow-hidden"
-              : "[&:fullscreen]:p-4 sm:[&:fullscreen]:p-6 [&:fullscreen]:bg-black [&:fullscreen]:justify-between [&:fullscreen]:h-screen [&:fullscreen]:w-screen"
+            isFullscreen || isCssFullscreen
+              ? "fixed inset-0 z-50 bg-black flex flex-col justify-between p-2 sm:p-6 w-screen h-screen overflow-hidden"
+              : ""
           }`}
         >
           {/* Video Area */}
           <div className={`w-full ${
-            isCssFullscreen
-              ? "flex-1 flex items-center justify-center min-h-0"
-              : "[&:fullscreen]:flex-1 [&:fullscreen]:flex [&:fullscreen]:items-center [&:fullscreen]:justify-center [&:fullscreen]:min-h-0"
+            isFullscreen || isCssFullscreen
+              ? "flex-1 flex items-center justify-center min-h-0 relative"
+              : ""
           }`}>
           {screenSharer ? (
             <ScreenSharePlayer
@@ -1294,6 +1298,7 @@ export default function RoomPage() {
             <YouTubePlayer
               videoId={activeVideo.videoId}
               isHost={isHost}
+              className={isFullscreen || isCssFullscreen ? "max-h-[calc(100vh-80px)] w-full h-full max-w-full" : ""}
               onVideoClick={handlePlayPause}
               callbacks={{
                 onReady: (dur) => {
