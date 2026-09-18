@@ -212,9 +212,18 @@ const server = http.createServer((req, res) => {
 
 const rawAllowedOrigins = process.env.ALLOWED_ORIGIN || process.env.ALLOWED_ORIGINS;
 const corsOrigin = rawAllowedOrigins
-  ? rawAllowedOrigins.includes(",")
-    ? rawAllowedOrigins.split(",").map((o) => o.trim())
-    : rawAllowedOrigins.trim()
+  ? (requestOrigin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!requestOrigin) return callback(null, true);
+      const normalizedRequest = requestOrigin.trim().replace(/\/+$/, "").toLowerCase();
+      const allowedList = rawAllowedOrigins
+        .split(",")
+        .map((o) => o.trim().replace(/\/+$/, "").toLowerCase());
+
+      if (allowedList.includes("*") || allowedList.includes(normalizedRequest)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${requestOrigin}`), false);
+    }
   : "*";
 
 const io = new Server(server, {
