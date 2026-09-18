@@ -23,9 +23,12 @@ export const metadata: Metadata = {
   keywords: ["watch party", "watch together", "sync video", "youtube sync", "popcorn", "movie night"],
   authors: [{ name: "Popcorn" }],
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/popcorn.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/popcorn.png",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     title: "Popcorn - Sync any video with friends, live",
@@ -33,9 +36,17 @@ export const metadata: Metadata = {
     siteName: "Popcorn",
     images: [
       {
-        url: "/icon.svg",
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        type: "image/png",
+        alt: "Popcorn - Sync any video with friends, live",
+      },
+      {
+        url: "/popcorn.png",
         width: 512,
         height: 512,
+        type: "image/png",
         alt: "Popcorn Logo",
       },
     ],
@@ -43,10 +54,10 @@ export const metadata: Metadata = {
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Popcorn - Sync any video with friends, live",
     description: "Watch YouTube videos in real-time sync with friends. Synchronized playback, live chat, and screen sharing.",
-    images: ["/icon.svg"],
+    images: ["/og-image.png"],
   },
 };
 
