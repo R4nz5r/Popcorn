@@ -71,6 +71,7 @@ export default function RoomPage() {
     bufferingUserName?: string;
   } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCssFullscreen, setIsCssFullscreen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -103,19 +104,35 @@ export default function RoomPage() {
 
   const hasLeftRef = useRef<boolean>(false);
 
-  // Listen to fullscreen changes across browsers
+  // Listen to fullscreen changes across browsers and Escape key
   useEffect(() => {
     function onFullscreenChange() {
       const doc = document as Document & { webkitFullscreenElement?: Element };
-      setIsFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement));
+      const isNativeFs = Boolean(document.fullscreenElement || doc.webkitFullscreenElement);
+      if (!isNativeFs && !isCssFullscreen) {
+        setIsFullscreen(false);
+      } else {
+        setIsFullscreen(true);
+      }
     }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && isCssFullscreen) {
+        setIsCssFullscreen(false);
+        setIsFullscreen(false);
+      }
+    }
+
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+    window.addEventListener("keydown", onKeyDown);
+
     return () => {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
+      window.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [isCssFullscreen]);
 
   // Close mobile menu on click outside or Escape
   useEffect(() => {
@@ -618,29 +635,49 @@ export default function RoomPage() {
     }
   };
 
-  // Fullscreen Toggle Action
+  // Fullscreen Toggle Action (Cross-platform for PC and Mobile)
   const handleToggleFullscreen = () => {
     if (!videoContainerRef.current) return;
-    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> | void };
-    const container = videoContainerRef.current as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> | void };
-    const isFs = Boolean(document.fullscreenElement || doc.webkitFullscreenElement);
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const container = videoContainerRef.current as HTMLDivElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const isNativeFs = Boolean(document.fullscreenElement || doc.webkitFullscreenElement);
+    const isCurrentlyFs = isNativeFs || isCssFullscreen;
 
-    if (!isFs) {
+    if (!isCurrentlyFs) {
+      // Attempt native HTML5 fullscreen first (standard on PC and Android)
       if (container.requestFullscreen) {
-        container.requestFullscreen().catch((err) => {
-          console.error("Error attempting to enable fullscreen:", err);
+        container.requestFullscreen().catch(() => {
+          // Fallback to CSS Viewport Fullscreen (iOS Safari or permission blocked)
+          setIsCssFullscreen(true);
+          setIsFullscreen(true);
         });
       } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
+        try {
+          container.webkitRequestFullscreen();
+        } catch {
+          setIsCssFullscreen(true);
+          setIsFullscreen(true);
+        }
+      } else {
+        // Direct CSS Viewport Fullscreen fallback (e.g. iOS Safari / iPhone)
+        setIsCssFullscreen(true);
+        setIsFullscreen(true);
       }
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch((err) => {
-          console.error("Error attempting to exit fullscreen:", err);
-        });
+      if (isCssFullscreen) {
+        setIsCssFullscreen(false);
+      }
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
       } else if (doc.webkitExitFullscreen) {
         doc.webkitExitFullscreen();
       }
+      setIsFullscreen(false);
     }
   };
 
@@ -1208,10 +1245,18 @@ export default function RoomPage() {
         {/* Video & Controls Area */}
         <div
           ref={videoContainerRef}
-          className="w-full flex flex-col gap-4 [&:fullscreen]:p-4 sm:[&:fullscreen]:p-6 [&:fullscreen]:bg-black [&:fullscreen]:justify-between [&:fullscreen]:h-screen [&:fullscreen]:w-screen"
+          className={`w-full flex flex-col gap-4 transition-all duration-150 ${
+            isCssFullscreen
+              ? "fixed inset-0 z-50 bg-black flex flex-col justify-between p-3 sm:p-6 w-screen h-screen overflow-hidden"
+              : "[&:fullscreen]:p-4 sm:[&:fullscreen]:p-6 [&:fullscreen]:bg-black [&:fullscreen]:justify-between [&:fullscreen]:h-screen [&:fullscreen]:w-screen"
+          }`}
         >
           {/* Video Area */}
-          <div className="w-full [&:fullscreen]:flex-1 [&:fullscreen]:flex [&:fullscreen]:items-center [&:fullscreen]:justify-center [&:fullscreen]:min-h-0">
+          <div className={`w-full ${
+            isCssFullscreen
+              ? "flex-1 flex items-center justify-center min-h-0"
+              : "[&:fullscreen]:flex-1 [&:fullscreen]:flex [&:fullscreen]:items-center [&:fullscreen]:justify-center [&:fullscreen]:min-h-0"
+          }`}>
           {screenSharer ? (
             <ScreenSharePlayer
               stream={screenShareStream}
@@ -1249,6 +1294,7 @@ export default function RoomPage() {
             <YouTubePlayer
               videoId={activeVideo.videoId}
               isHost={isHost}
+              onVideoClick={handlePlayPause}
               callbacks={{
                 onReady: (dur) => {
                   setDuration(dur);
@@ -1384,7 +1430,7 @@ export default function RoomPage() {
             syncStatus={syncStatus}
             isHost={isHost}
             onSyncToHost={handleSyncToHost}
-            isFullscreen={isFullscreen}
+            isFullscreen={isFullscreen || isCssFullscreen}
             onToggleFullscreen={handleToggleFullscreen}
           />
         )}

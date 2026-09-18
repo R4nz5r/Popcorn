@@ -57,6 +57,7 @@ interface YouTubePlayerProps {
   onAdapterReady?: (adapter: PlayerAdapter) => void;
   isHost?: boolean;
   className?: string;
+  onVideoClick?: () => void;
 }
 
 // Track whether script loading is initiated
@@ -106,6 +107,7 @@ export default function YouTubePlayer({
   onAdapterReady,
   isHost = true,
   className = "",
+  onVideoClick,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayerInstance | null>(null);
@@ -386,42 +388,48 @@ export default function YouTubePlayer({
       className={`relative w-full aspect-video overflow-hidden rounded-2xl bg-black ${className}`}
     >
       <div id={playerId} className="w-full h-full" />
-      {!isHost && (
-        <div
-          className="absolute inset-0 z-20 cursor-pointer select-none flex items-center justify-center group"
-          title={isMutedByPolicy ? "Click to unmute" : "Click to play or pause"}
-          onClick={() => {
-            if (playerRef.current && isReadyRef.current) {
-              try {
-                if (isMutedByPolicy) {
-                  playerRef.current.unMute();
-                  playerRef.current.setVolume(100);
-                  setIsMutedByPolicy(false);
-                  return;
-                }
-                const playerState = playerRef.current.getPlayerState?.();
-                if (playerState === window.YT?.PlayerState?.PLAYING) {
-                  playerRef.current.pauseVideo();
-                } else {
-                  playerRef.current.playVideo();
-                }
-              } catch {
-                // ignore
+      <div
+        className="absolute inset-0 z-20 cursor-pointer select-none flex items-center justify-center group"
+        title={isMutedByPolicy ? "Click to unmute" : "Click to play or pause"}
+        onClick={() => {
+          if (playerRef.current && isReadyRef.current) {
+            try {
+              if (isMutedByPolicy) {
+                playerRef.current.unMute();
+                playerRef.current.setVolume(100);
+                setIsMutedByPolicy(false);
+                return;
               }
+            } catch {
+              // ignore
             }
-          }}
-        >
-          {isMutedByPolicy && (
-            <div className="bg-black/80 backdrop-blur-sm text-white text-xs font-semibold px-4 py-2 rounded-full flex items-center gap-2 shadow-lg border border-white/20 transition-transform group-hover:scale-105 pointer-events-none animate-pulse">
-              <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M11 5L6 9H2v6h4l5 4V5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 19L5 5" />
-              </svg>
-              <span>Click anywhere on video to unmute</span>
-            </div>
-          )}
-        </div>
-      )}
+          }
+          if (onVideoClick) {
+            onVideoClick();
+          } else if (playerRef.current && isReadyRef.current) {
+            try {
+              const playerState = playerRef.current.getPlayerState?.();
+              if (playerState === window.YT?.PlayerState?.PLAYING) {
+                playerRef.current.pauseVideo();
+              } else {
+                playerRef.current.playVideo();
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }}
+      >
+        {isMutedByPolicy && (
+          <div className="bg-black/80 backdrop-blur-sm text-white text-xs font-semibold px-4 py-2 rounded-full flex items-center gap-2 shadow-lg border border-white/20 transition-transform group-hover:scale-105 pointer-events-none animate-pulse">
+            <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M11 5L6 9H2v6h4l5 4V5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 19L5 5" />
+            </svg>
+            <span>Click anywhere on video to unmute</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

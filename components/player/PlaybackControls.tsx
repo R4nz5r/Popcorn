@@ -68,11 +68,26 @@ export default function PlaybackControls({
   const progressPercent =
     duration > 0 ? Math.min(100, Math.max(0, (displayTime / duration) * 100)) : 0;
 
+  const getClientX = (
+    e: MouseEvent | React.MouseEvent<HTMLDivElement> | TouchEvent | React.TouchEvent<HTMLDivElement>
+  ): number => {
+    if ("touches" in e) {
+      if (e.touches && e.touches.length > 0) {
+        return e.touches[0].clientX;
+      }
+      if ("changedTouches" in e && e.changedTouches && e.changedTouches.length > 0) {
+        return e.changedTouches[0].clientX;
+      }
+      return 0;
+    }
+    return e.clientX;
+  };
+
   const calculateTimeFromEvent = useCallback(
     (e: MouseEvent | React.MouseEvent<HTMLDivElement> | TouchEvent | React.TouchEvent<HTMLDivElement>) => {
       if (!progressBarRef.current || duration <= 0) return 0;
       const rect = progressBarRef.current.getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientX = getClientX(e);
       const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
       const percentage = clickX / rect.width;
       return percentage * duration;
@@ -84,7 +99,6 @@ export default function PlaybackControls({
 
   const handlePointerDown = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!canSeek) return;
-    e.preventDefault();
     setIsDragging(true);
     const targetTime = calculateTimeFromEvent(e);
     setDragTime(targetTime);
@@ -107,7 +121,7 @@ export default function PlaybackControls({
 
     window.addEventListener("mousemove", handlePointerMove);
     window.addEventListener("mouseup", handlePointerUp);
-    window.addEventListener("touchmove", handlePointerMove);
+    window.addEventListener("touchmove", handlePointerMove, { passive: true });
     window.addEventListener("touchend", handlePointerUp);
 
     return () => {
@@ -122,7 +136,7 @@ export default function PlaybackControls({
     (e: MouseEvent | React.MouseEvent<HTMLDivElement> | TouchEvent | React.TouchEvent<HTMLDivElement>) => {
       if (!volumeBarRef.current) return 0;
       const rect = volumeBarRef.current.getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientX = getClientX(e);
       const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
       const percentage = clickX / rect.width;
       return Math.round(Math.min(100, Math.max(0, percentage * 100)));
@@ -131,7 +145,6 @@ export default function PlaybackControls({
   );
 
   const handleVolumePointerDown = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault();
     setIsDraggingVolume(true);
     const targetVol = calculateVolumeFromEvent(e);
     onVolumeChange?.(targetVol);
@@ -201,7 +214,7 @@ export default function PlaybackControls({
         onMouseDown={handlePointerDown}
         onTouchStart={handlePointerDown}
         title={canSeek ? "Click or drag to seek" : "Only host controls playback"}
-        className={`flex-1 py-2 group flex items-center relative ${
+        className={`flex-1 py-2 group flex items-center relative touch-none ${
           canSeek ? "cursor-pointer" : "cursor-default"
         }`}
       >
@@ -256,7 +269,7 @@ export default function PlaybackControls({
           ref={volumeBarRef}
           onMouseDown={handleVolumePointerDown}
           onTouchStart={handleVolumePointerDown}
-          className="w-16 sm:w-20 py-2 cursor-pointer flex items-center relative group"
+          className="w-16 sm:w-20 py-2 cursor-pointer flex items-center relative group touch-none"
           role="slider"
           aria-label="Volume slider"
           aria-valuenow={isMuted ? 0 : volume}
