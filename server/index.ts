@@ -210,12 +210,21 @@ const server = http.createServer((req, res) => {
   res.end();
 });
 
+const rawAllowedOrigins = process.env.ALLOWED_ORIGIN || process.env.ALLOWED_ORIGINS;
+const corsOrigin = rawAllowedOrigins
+  ? rawAllowedOrigins.includes(",")
+    ? rawAllowedOrigins.split(",").map((o) => o.trim())
+    : rawAllowedOrigins.trim()
+  : "*";
+
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: corsOrigin,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
+
 
 io.on("connection", (socket: Socket) => {
   let currentRoomId: string | null = null;

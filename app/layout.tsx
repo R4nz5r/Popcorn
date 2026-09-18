@@ -13,14 +13,43 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Popcorn",
-  description: "Sync any video with friends, live",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")
+  ),
+  title: "Popcorn - Sync any video with friends, live",
+  description: "Watch YouTube videos in real-time sync with friends. Synchronized playback, live chat, and screen sharing.",
+  applicationName: "Popcorn",
+  keywords: ["watch party", "watch together", "sync video", "youtube sync", "popcorn", "movie night"],
+  authors: [{ name: "Popcorn" }],
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",
     apple: "/icon.svg",
   },
+  openGraph: {
+    title: "Popcorn - Sync any video with friends, live",
+    description: "Watch YouTube videos in real-time sync with friends. Synchronized playback, live chat, and screen sharing.",
+    siteName: "Popcorn",
+    images: [
+      {
+        url: "/icon.svg",
+        width: 512,
+        height: 512,
+        alt: "Popcorn Logo",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Popcorn - Sync any video with friends, live",
+    description: "Watch YouTube videos in real-time sync with friends. Synchronized playback, live chat, and screen sharing.",
+    images: ["/icon.svg"],
+  },
 };
+
 
 export const viewport: Viewport = {
   width: "device-width",
