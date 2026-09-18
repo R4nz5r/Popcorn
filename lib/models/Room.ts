@@ -76,6 +76,16 @@ const RoomSchema = new Schema<IRoom>(
   }
 );
 
+// Auto-expire ephemeral rooms 48 hours after creation to keep production storage permanently clean
+RoomSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 172800, // 48 hours
+    partialFilterExpression: { persistentSlug: { $exists: false } },
+  }
+);
+
 // Prevent mongoose model overwrite in hot reload environments
 export const Room: Model<IRoom> =
   mongoose.models.Room || mongoose.model<IRoom>("Room", RoomSchema);
+
