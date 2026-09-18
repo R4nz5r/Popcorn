@@ -1,11 +1,14 @@
 import mongoose from "mongoose";
 import dns from "node:dns";
 
-// Fix for Node.js DNS SRV lookup on Windows / local routers where querySrv fails with ECONNREFUSED
-try {
-  dns.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
-} catch {
-  // Ignore in environments where setting DNS servers is not supported
+// Fix for Node.js DNS SRV lookup on local Windows dev where querySrv fails with ECONNREFUSED.
+// In production (Vercel/AWS), use default VPC resolvers so DNS queries do not hang.
+if (process.env.NODE_ENV !== "production") {
+  try {
+    dns.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
+  } catch {
+    // Ignore in environments where setting DNS servers is not supported
+  }
 }
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -39,6 +42,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   if (!cached!.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 5000,
     };
 
     cached!.promise = mongoose.connect(MONGODB_URI, opts).then((m) => {
