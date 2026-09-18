@@ -1251,14 +1251,30 @@ export default function RoomPage() {
           ref={videoContainerRef}
           className={`w-full flex flex-col gap-4 transition-all duration-150 ${
             isFullscreen || isCssFullscreen
-              ? "fixed inset-0 z-50 bg-black flex flex-col justify-between p-2 sm:p-6 w-screen h-screen overflow-hidden"
+              ? "fixed inset-0 z-50 bg-black flex flex-col justify-between p-3 sm:p-6 w-screen h-[100dvh] max-h-[100dvh] overflow-hidden"
               : ""
           }`}
         >
+          {/* Fullscreen Floating Back / Exit Button */}
+          {(isFullscreen || isCssFullscreen) && (
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="absolute top-3 left-3 sm:top-5 sm:left-5 z-50 flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/80 hover:bg-black text-white text-xs sm:text-sm font-semibold backdrop-blur-md border border-white/25 shadow-xl cursor-pointer transition-all active:scale-95"
+              title="Exit Fullscreen"
+              aria-label="Exit Fullscreen"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>Back</span>
+            </button>
+          )}
+
           {/* Video Area */}
           <div className={`w-full ${
             isFullscreen || isCssFullscreen
-              ? "flex-1 flex items-center justify-center min-h-0 relative"
+              ? "flex-1 flex items-center justify-center min-h-0 relative my-auto"
               : ""
           }`}>
           {screenSharer ? (
@@ -1422,22 +1438,24 @@ export default function RoomPage() {
 
         {/* Playback Controls Bar (active when not in screen share) */}
         {!screenSharer && (
-          <PlaybackControls
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            duration={duration}
-            onPlayPause={handlePlayPause}
-            onSeek={handleSeek}
-            volume={volume}
-            isMuted={isMuted}
-            onVolumeChange={handleVolumeChange}
-            onToggleMute={handleToggleMute}
-            syncStatus={syncStatus}
-            isHost={isHost}
-            onSyncToHost={handleSyncToHost}
-            isFullscreen={isFullscreen || isCssFullscreen}
-            onToggleFullscreen={handleToggleFullscreen}
-          />
+          <div className={isFullscreen || isCssFullscreen ? "w-full shrink-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] sm:pb-0" : "w-full"}>
+            <PlaybackControls
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              onPlayPause={handlePlayPause}
+              onSeek={handleSeek}
+              volume={volume}
+              isMuted={isMuted}
+              onVolumeChange={handleVolumeChange}
+              onToggleMute={handleToggleMute}
+              syncStatus={syncStatus}
+              isHost={isHost}
+              onSyncToHost={handleSyncToHost}
+              isFullscreen={isFullscreen || isCssFullscreen}
+              onToggleFullscreen={handleToggleFullscreen}
+            />
+          </div>
         )}
         </div>
 
