@@ -44,13 +44,13 @@ export default function UserNameModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-[#e8e4dc] shadow-xl flex flex-col gap-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-md bg-white dark:bg-[#1c1b18] rounded-3xl p-8 border border-[#e8e4dc] dark:border-[#2b2925] shadow-xl flex flex-col gap-5 transition-colors">
         <div>
-          <h2 className="text-xl font-bold text-[#1f1f1d]">
+          <h2 className="text-xl font-bold text-[#1f1f1d] dark:text-[#f3efe8]">
             {isInitialPrompt ? "Join Watch Party" : "Change Your Name"}
           </h2>
-          <p className="text-sm text-[#6b6b66] mt-1">
+          <p className="text-sm text-[#6b6b66] dark:text-[#a8a49c] mt-1">
             {isInitialPrompt
               ? roomCode
                 ? `Enter your name to join room ${roomCode}`
@@ -69,7 +69,7 @@ export default function UserNameModal({
           className="flex flex-col gap-4"
         >
           <div>
-            <label className="block text-xs font-semibold text-[#8e8c85] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-[#8e8c85] dark:text-[#95928a] uppercase tracking-wider mb-1.5">
               Your name
             </label>
             <input
@@ -82,17 +82,17 @@ export default function UserNameModal({
                 if (error) setError(null);
               }}
               maxLength={30}
-              className="w-full px-4 py-3 text-base md:text-sm rounded-xl border border-[#d6d2c9] text-[#1f1f1d] focus:border-[#262624] focus:ring-1 focus:ring-[#262624] outline-none transition-colors"
+              className="w-full px-4 py-3 text-base md:text-sm rounded-xl border border-[#d6d2c9] dark:border-[#33312b] bg-white dark:bg-[#242320] text-[#1f1f1d] dark:text-[#f3efe8] placeholder-[#8e8c85] dark:placeholder-[#737069] focus:border-[#262624] dark:focus:border-[#f59e0b] focus:ring-1 focus:ring-[#262624] dark:focus:ring-[#f59e0b] outline-none transition-colors"
             />
             {error && (
-              <p className="text-xs text-[#9b1c1c] font-medium mt-1.5">{error}</p>
+              <p className="text-xs text-[#9b1c1c] dark:text-[#fca5a5] font-medium mt-1.5">{error}</p>
             )}
           </div>
 
           <div className="flex items-center gap-2 pt-1">
             <button
               type="submit"
-              className="flex-1 py-3 px-4 bg-[#262624] hover:bg-black active:scale-[0.99] text-white rounded-xl text-sm font-medium transition-colors cursor-pointer"
+              className="flex-1 py-3 px-4 bg-[#262624] hover:bg-black dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] active:scale-[0.99] text-white rounded-xl text-sm font-medium transition-colors cursor-pointer shadow-xs"
             >
               {isInitialPrompt ? "Join Room" : "Save"}
             </button>
@@ -100,7 +100,7 @@ export default function UserNameModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="py-3 px-5 border border-[#d6d2c9] hover:bg-[#faf8f5] text-[#1f1f1d] rounded-xl text-sm font-medium transition-colors cursor-pointer"
+                className="py-3 px-5 border border-[#d6d2c9] dark:border-[#33312b] bg-white dark:bg-[#242320] hover:bg-[#faf8f5] dark:hover:bg-[#2c2b27] text-[#1f1f1d] dark:text-[#f3efe8] rounded-xl text-sm font-medium transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -108,6 +108,7 @@ export default function UserNameModal({
           </div>
         </form>
       </div>
+
     </div>
   );
 }

@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f3efe8;
   --foreground: #1f1f1d;
+}
+
+.dark {
+  --background: #121110;
+  --foreground: #f3efe8;
 }
 
 @theme inline {
@@ -24,3 +31,4 @@ body {
     font-size: 16px !important;
   }
 }
+

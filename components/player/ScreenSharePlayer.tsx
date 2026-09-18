@@ -17,10 +17,12 @@ export default function ScreenSharePlayer({
 }: ScreenSharePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const volumeContainerRef = useRef<HTMLDivElement>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [needsUserInteractionToUnmute, setNeedsUserInteractionToUnmute] = useState(false);
+  const [isMobileVolumeOpen, setIsMobileVolumeOpen] = useState(false);
 
   const effectiveMuted = isPresenter || isMuted;
 
@@ -50,6 +52,32 @@ export default function ScreenSharePlayer({
     setIsMuted(nextMuted);
     setNeedsUserInteractionToUnmute(false);
   };
+
+  const handleSoundLogoClick = () => {
+    if (isPresenter) return;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+    if (isMobile) {
+      setIsMobileVolumeOpen((prev) => !prev);
+    } else {
+      handleToggleMute();
+    }
+  };
+
+  // Close mobile volume slider when clicking/tapping outside
+  useEffect(() => {
+    if (!isMobileVolumeOpen) return;
+
+    const handlePointerDownOutside = (e: MouseEvent | TouchEvent) => {
+      if (volumeContainerRef.current && !volumeContainerRef.current.contains(e.target as Node)) {
+        setIsMobileVolumeOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDownOutside);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDownOutside);
+    };
+  }, [isMobileVolumeOpen]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isPresenter) return;
@@ -154,10 +182,13 @@ export default function ScreenSharePlayer({
               <span>Stop Sharing</span>
             </button>
           ) : (
-            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-xl border border-white/10">
+            <div
+              ref={volumeContainerRef}
+              className="flex items-center bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-xl border border-white/10"
+            >
               <button
                 type="button"
-                onClick={handleToggleMute}
+                onClick={handleSoundLogoClick}
                 className="text-white/80 hover:text-white transition-colors cursor-pointer"
                 title={effectiveMuted ? "Unmute" : "Mute"}
               >
@@ -178,7 +209,11 @@ export default function ScreenSharePlayer({
                 max="100"
                 value={effectiveMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="w-16 sm:w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+                className={`h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white transition-all duration-200 ease-out ${
+                  isMobileVolumeOpen
+                    ? "w-16 opacity-100 pointer-events-auto ml-2"
+                    : "w-0 opacity-0 pointer-events-none overflow-hidden ml-0 sm:w-20 sm:opacity-100 sm:pointer-events-auto sm:ml-2 sm:overflow-visible"
+                }`}
                 title={`Volume: ${volume}%`}
               />
             </div>

@@ -132,7 +132,7 @@ export default function ParticipantList({
 
   return (
     <div className={`flex flex-col gap-2.5 ${className}`}>
-      <div className="text-sm font-bold text-[#1f1f1d] tracking-tight">
+      <div className="text-sm font-bold text-[#1f1f1d] dark:text-[#f3efe8] tracking-tight">
         {totalWatching} watching
       </div>
 

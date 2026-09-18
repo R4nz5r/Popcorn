@@ -62,11 +62,40 @@ export default function PlaybackControls({
   const [dragTime, setDragTime] = useState<number | null>(null);
 
   const volumeBarRef = useRef<HTMLDivElement>(null);
+  const volumeContainerRef = useRef<HTMLDivElement>(null);
   const [isDraggingVolume, setIsDraggingVolume] = useState(false);
+  const [isMobileVolumeOpen, setIsMobileVolumeOpen] = useState(false);
 
   const displayTime = dragTime !== null ? dragTime : currentTime;
   const progressPercent =
     duration > 0 ? Math.min(100, Math.max(0, (displayTime / duration) * 100)) : 0;
+
+  // Sound logo click: On mobile (<640px) toggle volume slider; on desktop toggle mute
+  const handleSoundLogoClick = () => {
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+    if (isMobile) {
+      setIsMobileVolumeOpen((prev) => !prev);
+    } else {
+      onToggleMute?.();
+    }
+  };
+
+  // Close mobile volume slider when clicking/tapping outside
+  useEffect(() => {
+    if (!isMobileVolumeOpen) return;
+
+    const handlePointerDownOutside = (e: MouseEvent | TouchEvent) => {
+      if (isDraggingVolume) return;
+      if (volumeContainerRef.current && !volumeContainerRef.current.contains(e.target as Node)) {
+        setIsMobileVolumeOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDownOutside);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDownOutside);
+    };
+  }, [isMobileVolumeOpen, isDraggingVolume]);
 
   const getClientX = (
     e: MouseEvent | React.MouseEvent<HTMLDivElement> | TouchEvent | React.TouchEvent<HTMLDivElement>
@@ -182,7 +211,7 @@ export default function PlaybackControls({
       className={`w-full rounded-2xl px-4 py-3 flex items-center gap-3 shadow-xs select-none transition-colors ${
         isDarkFs
           ? "bg-[#141413]/90 border border-white/20 text-white shadow-2xl backdrop-blur-md"
-          : "bg-white border border-[#d6d2c9] text-[#1f1f1d]"
+          : "bg-white dark:bg-[#1c1b18] border border-[#d6d2c9] dark:border-[#2b2925] text-[#1f1f1d] dark:text-[#f3efe8]"
       } ${className}`}
     >
       {/* Play / Pause Toggle */}
@@ -192,7 +221,7 @@ export default function PlaybackControls({
         aria-label={isPlaying ? "Pause" : "Play"}
         title={isPlaying ? "Pause" : "Play"}
         className={`p-1 flex items-center justify-center shrink-0 transition-opacity hover:opacity-75 cursor-pointer ${
-          isDarkFs ? "text-white" : "text-[#1f1f1d]"
+          isDarkFs ? "text-white" : "text-[#1f1f1d] dark:text-[#f3efe8]"
         }`}
       >
         {isPlaying ? (
@@ -212,11 +241,11 @@ export default function PlaybackControls({
       {/* Time Display (hidden on very small screens if needed, or shown in monospace) */}
       <div
         className={`hidden sm:flex items-center text-xs font-mono font-medium shrink-0 tracking-tight ${
-          isDarkFs ? "text-neutral-300" : "text-[#4b5563]"
+          isDarkFs ? "text-neutral-300" : "text-[#4b5563] dark:text-[#a8a49c]"
         }`}
       >
         <span>{formatTime(displayTime, duration)}</span>
-        <span className={`mx-1 ${isDarkFs ? "text-neutral-500" : "text-[#9ca3af]"}`}>/</span>
+        <span className={`mx-1 ${isDarkFs ? "text-neutral-500" : "text-[#9ca3af] dark:text-[#737069]"}`}>/</span>
         <span>{formatTime(duration, duration)}</span>
       </div>
 
@@ -233,13 +262,13 @@ export default function PlaybackControls({
         {/* Background track */}
         <div
           className={`w-full h-1.5 rounded-full overflow-hidden relative ${
-            isDarkFs ? "bg-white/20" : "bg-[#d6d2c9]"
+            isDarkFs ? "bg-white/20" : "bg-[#d6d2c9] dark:bg-[#33312b]"
           }`}
         >
           {/* Progress fill */}
           <div
             className={`h-full transition-all duration-75 ${
-              isDarkFs ? "bg-white" : "bg-[#1f1f1d]"
+              isDarkFs ? "bg-white" : "bg-[#1f1f1d] dark:bg-[#f59e0b]"
             }`}
             style={{ width: `${progressPercent}%` }}
           />
@@ -249,7 +278,7 @@ export default function PlaybackControls({
         {canSeek && (
           <div
             className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full shadow-sm transition-transform pointer-events-none ${
-              isDarkFs ? "bg-white" : "bg-[#1f1f1d]"
+              isDarkFs ? "bg-white" : "bg-[#1f1f1d] dark:bg-[#fbbf24]"
             } ${isDragging ? "scale-125" : "opacity-0 group-hover:opacity-100"}`}
             style={{ left: `${progressPercent}%` }}
           />
@@ -258,16 +287,18 @@ export default function PlaybackControls({
 
       {/* Sound / Volume Controls */}
       <div
-        className={`flex items-center gap-1.5 shrink-0 ${
-          isDarkFs ? "text-white" : "text-[#1f1f1d]"
+        ref={volumeContainerRef}
+        className={`flex items-center shrink-0 ${
+          isDarkFs ? "text-white" : "text-[#1f1f1d] dark:text-[#f3efe8]"
         }`}
       >
         <button
           type="button"
-          onClick={onToggleMute}
+          onClick={handleSoundLogoClick}
           aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
+          title={isMuted || volume === 0 ? "Unmute" : "Mute"}
           className={`p-1 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center ${
-            isDarkFs ? "text-white" : "text-[#1f1f1d]"
+            isDarkFs ? "text-white" : "text-[#1f1f1d] dark:text-[#f3efe8]"
           }`}
         >
           {isMuted || volume === 0 ? (
@@ -288,12 +319,16 @@ export default function PlaybackControls({
           )}
         </button>
 
-        {/* Volume Bar Line matching time scrubber */}
+        {/* Volume Bar Line matching time scrubber: collapsible on mobile, visible on desktop */}
         <div
           ref={volumeBarRef}
           onMouseDown={handleVolumePointerDown}
           onTouchStart={handleVolumePointerDown}
-          className="w-16 sm:w-20 py-2.5 sm:py-2 cursor-pointer flex items-center relative group touch-none"
+          className={`py-2.5 sm:py-2 cursor-pointer flex items-center relative group touch-none transition-all duration-200 ease-out ${
+            isMobileVolumeOpen
+              ? "w-16 opacity-100 pointer-events-auto ml-1.5"
+              : "w-0 opacity-0 pointer-events-none overflow-hidden ml-0 sm:w-20 sm:opacity-100 sm:pointer-events-auto sm:ml-1.5 sm:overflow-visible"
+          }`}
           role="slider"
           aria-label="Volume slider"
           aria-valuenow={isMuted ? 0 : volume}
@@ -303,13 +338,13 @@ export default function PlaybackControls({
           {/* Background track */}
           <div
             className={`w-full h-1.5 rounded-full overflow-hidden relative ${
-              isDarkFs ? "bg-white/20" : "bg-[#d6d2c9]"
+              isDarkFs ? "bg-white/20" : "bg-[#d6d2c9] dark:bg-[#33312b]"
             }`}
           >
             {/* Volume fill */}
             <div
               className={`h-full transition-all duration-75 ${
-                isDarkFs ? "bg-white" : "bg-[#1f1f1d]"
+                isDarkFs ? "bg-white" : "bg-[#1f1f1d] dark:bg-[#f59e0b]"
               }`}
               style={{ width: `${isMuted ? 0 : volume}%` }}
             />
@@ -325,7 +360,7 @@ export default function PlaybackControls({
           aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
           title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
           className={`p-1 hover:opacity-75 transition-opacity cursor-pointer flex items-center justify-center shrink-0 ${
-            isDarkFs ? "text-white" : "text-[#1f1f1d]"
+            isDarkFs ? "text-white" : "text-[#1f1f1d] dark:text-[#f3efe8]"
           }`}
         >
           {isFullscreen ? (
@@ -346,8 +381,8 @@ export default function PlaybackControls({
           <span
             className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide select-none ${
               syncStatus === "disconnected"
-                ? "bg-rose-100 text-rose-700 border border-rose-200"
-                : "bg-[#cbf3bb] text-[#1b4317]"
+                ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60"
+                : "bg-[#cbf3bb] dark:bg-emerald-950/60 text-[#1b4317] dark:text-emerald-300 dark:border dark:border-emerald-800/50"
             }`}
             title={
               syncStatus === "disconnected"
@@ -359,10 +394,10 @@ export default function PlaybackControls({
           </span>
         ) : (syncStatus ?? (isSynced ? "synced" : "syncing")) === "host-left" ? (
           <span
-            className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide bg-amber-100 text-amber-900 border border-amber-200 select-none flex items-center gap-1.5 shadow-xs"
+            className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 select-none flex items-center gap-1.5 shadow-xs"
             title="The host has left the room. Playback is currently local and independent."
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400" />
             Host Left
           </span>
         ) : (syncStatus ?? (isSynced ? "synced" : "syncing")) === "syncing" ? (
@@ -370,9 +405,9 @@ export default function PlaybackControls({
             type="button"
             onClick={onSyncToHost}
             title="Catching up or behind. Click to instantly sync with host"
-            className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide transition-all bg-amber-100 hover:bg-amber-200 active:scale-95 text-amber-800 cursor-pointer shadow-xs flex items-center gap-1.5"
+            className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide transition-all bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 dark:border dark:border-amber-800/60 active:scale-95 text-amber-800 dark:text-amber-300 cursor-pointer shadow-xs flex items-center gap-1.5"
           >
-            <svg className="w-3 h-3 animate-spin text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg className="w-3 h-3 animate-spin text-amber-700 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Sync to Host
@@ -382,13 +417,13 @@ export default function PlaybackControls({
             type="button"
             onClick={onSyncToHost}
             title="In sync with host. Click to re-sync anytime"
-            className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide transition-all bg-[#cbf3bb] hover:bg-[#bbf0a7] active:scale-95 text-[#1b4317] cursor-pointer shadow-xs flex items-center gap-1.5"
+            className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide transition-all bg-[#cbf3bb] hover:bg-[#bbf0a7] dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 dark:border dark:border-emerald-800/50 active:scale-95 text-[#1b4317] dark:text-emerald-300 cursor-pointer shadow-xs flex items-center gap-1.5"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#1b4317]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#1b4317] dark:bg-emerald-400" />
             Synced
           </button>
         ) : (
-          <span className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide bg-neutral-200 text-neutral-600 select-none">
+          <span className="px-3 py-1 rounded-full text-xs font-semibold tracking-wide bg-neutral-200 dark:bg-[#2c2a26] text-neutral-600 dark:text-[#95928a] select-none">
             Disconnected
           </span>
         )}
@@ -396,3 +431,4 @@ export default function PlaybackControls({
     </div>
   );
 }
+

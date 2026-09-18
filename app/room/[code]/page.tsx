@@ -27,6 +27,8 @@ import ParticipantList, { getInitials } from "@/components/room/ParticipantList"
 import AddSourceModal from "@/components/room/AddSourceModal";
 import UserNameModal from "@/components/room/UserNameModal";
 import { sanitizeRoomCode } from "@/lib/code-generator";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+
 
 interface RoomData {
   code: string;
@@ -909,10 +911,10 @@ export default function RoomPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f3efe8] p-4">
-        <div className="flex items-center gap-3 text-[#686762] text-sm">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f3efe8] dark:bg-[#121110] p-4 transition-colors">
+        <div className="flex items-center gap-3 text-[#686762] dark:text-[#a8a49c] text-sm">
           <svg
-            className="animate-spin h-5 w-5 text-[#262624]"
+            className="animate-spin h-5 w-5 text-[#262624] dark:text-[#f3efe8]"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -939,16 +941,16 @@ export default function RoomPage() {
 
   if (error || !room) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f3efe8] p-4">
-        <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-[#e8e4dc] shadow-xs text-center">
-          <h2 className="text-xl font-bold text-[#1f1f1d]">Room Not Found</h2>
-          <p className="text-sm text-[#686762] mt-2">
-            The room code <span className="font-mono font-bold text-[#1f1f1d]">{code}</span> could not be found or has expired.
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f3efe8] dark:bg-[#121110] p-4 transition-colors">
+        <div className="w-full max-w-md bg-white dark:bg-[#1c1b18] rounded-3xl p-8 border border-[#e8e4dc] dark:border-[#2b2925] shadow-xs text-center">
+          <h2 className="text-xl font-bold text-[#1f1f1d] dark:text-[#f3efe8]">Room Not Found</h2>
+          <p className="text-sm text-[#686762] dark:text-[#a8a49c] mt-2">
+            The room code <span className="font-mono font-bold text-[#1f1f1d] dark:text-[#f3efe8]">{code}</span> could not be found or has expired.
           </p>
           <div className="mt-6">
             <Link
               href="/"
-              className="inline-block py-2.5 px-6 bg-[#262624] hover:bg-[#1a1a18] text-white text-sm font-medium rounded-xl transition-colors"
+              className="inline-block py-2.5 px-6 bg-[#262624] hover:bg-[#1a1a18] dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] text-white text-sm font-medium rounded-xl transition-colors shadow-xs"
             >
               Back to Home
             </Link>
@@ -964,13 +966,13 @@ export default function RoomPage() {
       : room.participantIds || room.participants || [];
 
   return (
-    <div className="min-h-screen w-full bg-[#f3efe8] flex flex-col">
+    <div className="min-h-screen w-full bg-[#f3efe8] dark:bg-[#121110] text-[#1f1f1d] dark:text-[#f3efe8] flex flex-col transition-colors duration-200">
       {/* Top navigation / room bar */}
-      <header className="border-b border-[#e5e2db] bg-white/80 backdrop-blur-sm px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between sticky top-0 z-40">
+      <header className="border-b border-[#e5e2db] dark:border-[#2b2925] bg-white/80 dark:bg-[#161514]/85 backdrop-blur-sm px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between sticky top-0 z-40 transition-colors">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-sm sm:text-base font-bold tracking-tight text-[#1f1f1d] hover:opacity-80 shrink-0"
+            className="flex items-center gap-1.5 text-sm sm:text-base font-bold tracking-tight text-[#1f1f1d] dark:text-[#f3efe8] hover:opacity-80 shrink-0"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icon.svg" alt="Popcorn" className="w-5 h-5 select-none" />
@@ -978,15 +980,15 @@ export default function RoomPage() {
           </Link>
 
           {/* Desktop Room pill */}
-          <div className="hidden md:flex items-center gap-2 bg-[#f3efe8] px-2.5 py-1 rounded-lg border border-[#e5e2db]">
-            <span className="text-xs text-[#8e8c85]">Room:</span>
-            <span className="font-mono font-bold text-xs sm:text-sm text-[#1f1f1d] tracking-wider">
+          <div className="hidden md:flex items-center gap-2 bg-[#f3efe8] dark:bg-[#242320] px-2.5 py-1 rounded-lg border border-[#e5e2db] dark:border-[#33312b]">
+            <span className="text-xs text-[#8e8c85] dark:text-[#95928a]">Room:</span>
+            <span className="font-mono font-bold text-xs sm:text-sm text-[#1f1f1d] dark:text-[#f3efe8] tracking-wider">
               {room.code}
             </span>
             <button
               type="button"
               onClick={handleCopyLink}
-              className="ml-1 text-xs text-[#686762] hover:text-[#1f1f1d] transition-colors cursor-pointer"
+              className="ml-1 text-xs text-[#686762] dark:text-[#a8a49c] hover:text-[#1f1f1d] dark:hover:text-[#f3efe8] transition-colors cursor-pointer"
             >
               {copied ? "Copied!" : "Copy link"}
             </button>
@@ -996,16 +998,16 @@ export default function RoomPage() {
           <button
             type="button"
             onClick={handleCopyLink}
-            className="flex md:hidden items-center gap-1.5 bg-[#f3efe8] hover:bg-[#eae5dc] px-2 py-1 rounded-lg border border-[#e5e2db] transition-colors cursor-pointer"
+            className="flex md:hidden items-center gap-1.5 bg-[#f3efe8] dark:bg-[#242320] hover:bg-[#eae5dc] dark:hover:bg-[#2c2b27] px-2 py-1 rounded-lg border border-[#e5e2db] dark:border-[#33312b] transition-colors cursor-pointer"
             title="Tap to copy room link"
           >
-            <span className="font-mono font-bold text-xs text-[#1f1f1d] tracking-wider">
+            <span className="font-mono font-bold text-xs text-[#1f1f1d] dark:text-[#f3efe8] tracking-wider">
               {room.code}
             </span>
             {copied ? (
-              <span className="text-[10px] font-semibold text-emerald-600">Copied!</span>
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Copied!</span>
             ) : (
-              <svg className="w-3 h-3 text-[#8e8c85]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3 h-3 text-[#8e8c85] dark:text-[#95928a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             )}
@@ -1014,6 +1016,9 @@ export default function RoomPage() {
 
         {/* Desktop Navigation Actions (100% faithful to reference mockup) */}
         <div className="hidden md:flex items-center gap-2 sm:gap-3">
+          {/* Theme Toggle */}
+          <ThemeToggle size="sm" />
+
           {/* Share Screen Button */}
           <button
             type="button"
@@ -1023,8 +1028,8 @@ export default function RoomPage() {
               screenSharer?.userId === currentUser?.userId
                 ? "bg-red-600 hover:bg-red-700 text-white"
                 : screenSharer
-                ? "bg-[#e8e4dc] text-[#8e8c85] cursor-not-allowed"
-                : "bg-white border border-[#d6d2c9] hover:bg-[#f5f2eb] text-[#1f1f1d]"
+                ? "bg-[#e8e4dc] dark:bg-[#2c2a26] text-[#8e8c85] dark:text-[#737069] cursor-not-allowed"
+                : "bg-white dark:bg-[#242320] border border-[#d6d2c9] dark:border-[#33312b] hover:bg-[#f5f2eb] dark:hover:bg-[#2c2b27] text-[#1f1f1d] dark:text-[#f3efe8]"
             }`}
             title={
               screenSharer && screenSharer.userId !== currentUser?.userId
@@ -1056,7 +1061,7 @@ export default function RoomPage() {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="text-xs font-semibold px-3 py-1.5 bg-[#262624] hover:bg-black text-white rounded-lg transition-colors cursor-pointer"
+            className="text-xs font-semibold px-3 py-1.5 bg-[#262624] hover:bg-black dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] text-white rounded-lg transition-colors cursor-pointer shadow-xs"
           >
             + Add video
           </button>
@@ -1068,7 +1073,7 @@ export default function RoomPage() {
                 setIsInitialNamePrompt(false);
                 setIsNameModalOpen(true);
               }}
-              className="flex items-center gap-2 py-1 px-2.5 rounded-xl border border-[#e5e2db] bg-[#fbf9f5] hover:bg-[#f3efe8] transition-all cursor-pointer group"
+              className="flex items-center gap-2 py-1 px-2.5 rounded-xl border border-[#e5e2db] dark:border-[#33312b] bg-[#fbf9f5] dark:bg-[#242320] hover:bg-[#f3efe8] dark:hover:bg-[#2c2b27] transition-all cursor-pointer group"
               title="Click to change your name"
             >
               <div
@@ -1077,14 +1082,14 @@ export default function RoomPage() {
               >
                 {currentUser.displayName ? getInitials(currentUser.displayName) : "U"}
               </div>
-              <span className="hidden sm:inline text-xs font-semibold text-[#1f1f1d]">
+              <span className="hidden sm:inline text-xs font-semibold text-[#1f1f1d] dark:text-[#f3efe8]">
                 {currentUser.displayName}
               </span>
-              <svg className="w-3 h-3 text-[#8e8c85] group-hover:text-[#1f1f1d] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3 h-3 text-[#8e8c85] group-hover:text-[#1f1f1d] dark:group-hover:text-[#f3efe8] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
               {isHost && (
-                <span className="hidden sm:inline px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e0f2fe] text-[#0369a1] border border-[#bae6fd]">
+                <span className="hidden sm:inline px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e0f2fe] dark:bg-sky-950/60 text-[#0369a1] dark:text-sky-300 border border-[#bae6fd] dark:border-sky-800/60">
                   Host
                 </span>
               )}
@@ -1098,7 +1103,7 @@ export default function RoomPage() {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="text-xs font-semibold px-2.5 py-1.5 bg-[#262624] hover:bg-black text-white rounded-lg transition-colors cursor-pointer shrink-0 shadow-2xs"
+            className="text-xs font-semibold px-2.5 py-1.5 bg-[#262624] hover:bg-black dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] text-white rounded-lg transition-colors cursor-pointer shrink-0 shadow-2xs"
           >
             + Add video
           </button>
@@ -1109,8 +1114,8 @@ export default function RoomPage() {
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             className={`flex items-center gap-1.5 py-1 px-1.5 rounded-xl border transition-all cursor-pointer ${
               isMobileMenuOpen
-                ? "border-[#262624] bg-[#f3efe8]"
-                : "border-[#e5e2db] bg-[#fbf9f5] hover:bg-[#f3efe8]"
+                ? "border-[#262624] dark:border-[#f59e0b] bg-[#f3efe8] dark:bg-[#242320]"
+                : "border-[#e5e2db] dark:border-[#33312b] bg-[#fbf9f5] dark:bg-[#242320] hover:bg-[#f3efe8] dark:hover:bg-[#2c2b27]"
             }`}
             aria-label="Room options menu"
             aria-expanded={isMobileMenuOpen}
@@ -1123,21 +1128,21 @@ export default function RoomPage() {
                 {currentUser.displayName ? getInitials(currentUser.displayName) : "U"}
               </div>
             ) : (
-              <div className="w-6 h-6 rounded-full bg-[#e5e2db] flex items-center justify-center text-[11px] font-bold text-[#686762]">
+              <div className="w-6 h-6 rounded-full bg-[#e5e2db] dark:bg-[#2c2a26] flex items-center justify-center text-[11px] font-bold text-[#686762] dark:text-[#95928a]">
                 ?
               </div>
             )}
-            <svg className="w-3.5 h-3.5 text-[#686762]" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-3.5 h-3.5 text-[#686762] dark:text-[#95928a]" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
             </svg>
           </button>
 
           {/* Mobile Action Dropdown Menu */}
           {isMobileMenuOpen && (
-            <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-md border border-[#e5e2db] rounded-2xl shadow-xl z-50 p-2.5 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 dark:bg-[#1c1b18]/95 backdrop-blur-md border border-[#e5e2db] dark:border-[#2b2925] rounded-2xl shadow-xl z-50 p-2.5 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
               {/* User Profile / Name Row */}
               {currentUser && (
-                <div className="flex items-center justify-between p-2 rounded-xl bg-[#fbf9f5] border border-[#f0ece4]">
+                <div className="flex items-center justify-between p-2 rounded-xl bg-[#fbf9f5] dark:bg-[#242320] border border-[#f0ece4] dark:border-[#33312b]">
                   <div className="flex items-center gap-2 min-w-0">
                     <div
                       className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-xs shrink-0 select-none"
@@ -1146,15 +1151,15 @@ export default function RoomPage() {
                       {currentUser.displayName ? getInitials(currentUser.displayName) : "U"}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold text-[#1f1f1d] truncate">
+                      <span className="text-xs font-bold text-[#1f1f1d] dark:text-[#f3efe8] truncate">
                         {currentUser.displayName}
                       </span>
                       {isHost ? (
-                        <span className="text-[10px] font-semibold text-[#0369a1]">
+                        <span className="text-[10px] font-semibold text-[#0369a1] dark:text-sky-400">
                           Room Host
                         </span>
                       ) : (
-                        <span className="text-[10px] text-[#8e8c85]">
+                        <span className="text-[10px] text-[#8e8c85] dark:text-[#95928a]">
                           Participant
                         </span>
                       )}
@@ -1167,7 +1172,7 @@ export default function RoomPage() {
                       setIsInitialNamePrompt(false);
                       setIsNameModalOpen(true);
                     }}
-                    className="p-1 text-[#8e8c85] hover:text-[#1f1f1d] hover:bg-[#f3efe8] rounded-lg transition-colors cursor-pointer shrink-0"
+                    className="p-1 text-[#8e8c85] dark:text-[#95928a] hover:text-[#1f1f1d] dark:hover:text-[#f3efe8] hover:bg-[#f3efe8] dark:hover:bg-[#2c2b27] rounded-lg transition-colors cursor-pointer shrink-0"
                     title="Change name"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1176,6 +1181,12 @@ export default function RoomPage() {
                   </button>
                 </div>
               )}
+
+              {/* Theme Toggle Row in Mobile Menu */}
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#1f1f1d] dark:text-[#f3efe8]">
+                <span>Appearance</span>
+                <ThemeToggle size="sm" />
+              </div>
 
               {/* Share Screen Option */}
               <button
@@ -1189,12 +1200,12 @@ export default function RoomPage() {
                   screenSharer?.userId === currentUser?.userId
                     ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
                     : screenSharer
-                    ? "bg-[#f5f2eb] text-[#8e8c85] cursor-not-allowed opacity-75"
-                    : "hover:bg-[#f5f2eb] text-[#1f1f1d]"
+                    ? "bg-[#f5f2eb] dark:bg-[#2c2a26] text-[#8e8c85] dark:text-[#737069] cursor-not-allowed opacity-75"
+                    : "hover:bg-[#f5f2eb] dark:hover:bg-[#242320] text-[#1f1f1d] dark:text-[#f3efe8]"
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[#8e8c85]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-[#8e8c85] dark:text-[#95928a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -1223,21 +1234,21 @@ export default function RoomPage() {
                 onClick={() => {
                   handleCopyLink();
                 }}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#f5f2eb] text-[#1f1f1d] transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#f5f2eb] dark:hover:bg-[#242320] text-[#1f1f1d] dark:text-[#f3efe8] transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[#8e8c85]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-[#8e8c85] dark:text-[#95928a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                   <span>Copy room link</span>
                 </div>
                 {copied && (
-                  <span className="text-[10px] font-bold text-emerald-600">Copied!</span>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Copied!</span>
                 )}
               </button>
 
               {/* Room Stats Footer */}
-              <div className="pt-1 mt-0.5 border-t border-[#f0ece4] px-2 flex items-center justify-between text-[11px] text-[#8e8c85]">
+              <div className="pt-1 mt-0.5 border-t border-[#f0ece4] dark:border-[#2b2925] px-2 flex items-center justify-between text-[11px] text-[#8e8c85] dark:text-[#95928a]">
                 <span>Room {room.code}</span>
                 <span>{participantIds.length} {participantIds.length === 1 ? "peer" : "peers"}</span>
               </div>
@@ -1245,6 +1256,7 @@ export default function RoomPage() {
           )}
         </div>
       </header>
+
 
       {/* Main Watch Room Container */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 flex flex-col gap-4">
@@ -1287,8 +1299,8 @@ export default function RoomPage() {
               onStopSharing={handleToggleScreenShare}
             />
           ) : videoError ? (
-            <div className="w-full aspect-video rounded-2xl border border-[#d6d2c9] bg-white flex flex-col items-center justify-center p-6 text-center shadow-xs">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 mb-3">
+            <div className="w-full aspect-video rounded-2xl border border-[#d6d2c9] dark:border-[#2b2925] bg-white dark:bg-[#1c1b18] flex flex-col items-center justify-center p-6 text-center shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 flex items-center justify-center text-amber-700 dark:text-amber-400 mb-3">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
@@ -1298,16 +1310,16 @@ export default function RoomPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-base font-bold text-[#1f1f1d] mb-1">
+              <h3 className="text-base font-bold text-[#1f1f1d] dark:text-[#f3efe8] mb-1">
                 Video Unavailable
               </h3>
-              <p className="text-xs sm:text-sm text-[#686762] max-w-md mb-4 leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#686762] dark:text-[#a8a49c] max-w-md mb-4 leading-relaxed">
                 {videoError.message}
               </p>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2 bg-[#262624] hover:bg-black text-white text-xs sm:text-sm font-medium rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 bg-[#262624] hover:bg-black dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] text-white text-xs sm:text-sm font-medium rounded-xl transition-colors cursor-pointer shadow-xs"
               >
                 Choose another video
               </button>
@@ -1405,9 +1417,9 @@ export default function RoomPage() {
             /* Exact match to design/2-watch-room.jpg placeholder state */
             <div
               onClick={() => setIsModalOpen(true)}
-              className="w-full aspect-video rounded-2xl border border-[#d6d2c9] bg-white flex items-center justify-center cursor-pointer group hover:border-[#1f1f1d] transition-colors shadow-xs"
+              className="w-full aspect-video rounded-2xl border border-[#d6d2c9] dark:border-[#2b2925] bg-white dark:bg-[#1c1b18] flex items-center justify-center cursor-pointer group hover:border-[#1f1f1d] dark:hover:border-[#f59e0b] transition-colors shadow-xs"
             >
-              <div className="flex items-center gap-2 text-sm sm:text-base font-medium text-[#8e8c85] group-hover:text-[#1f1f1d] transition-colors">
+              <div className="flex items-center gap-2 text-sm sm:text-base font-medium text-[#8e8c85] dark:text-[#95928a] group-hover:text-[#1f1f1d] dark:group-hover:text-[#f3efe8] transition-colors">
                 <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M6 4.5v15a1 1 0 0 0 1.524.852l12-7.5a1 1 0 0 0 0-1.704l-12-7.5A1 1 0 0 0 6 4.5z" />
                 </svg>
@@ -1419,17 +1431,17 @@ export default function RoomPage() {
 
         {/* Peer Buffering Indicator (design/4-host-controls-buffering.jpg) */}
         {bufferingPeerInfo?.isBuffering && (
-          <div className="w-full bg-[#f3f0e8] border border-[#e5e0d4] rounded-2xl p-4 flex items-center justify-center gap-3 text-center my-3 transition-opacity">
-            <svg className="w-5 h-5 text-[#8e8c85] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="w-full bg-[#f3f0e8] dark:bg-[#242320] border border-[#e5e0d4] dark:border-[#33312b] rounded-2xl p-4 flex items-center justify-center gap-3 text-center my-3 transition-opacity">
+            <svg className="w-5 h-5 text-[#8e8c85] dark:text-[#95928a] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             <div>
-              <div className="text-sm font-semibold text-[#1f1f1d]">
+              <div className="text-sm font-semibold text-[#1f1f1d] dark:text-[#f3efe8]">
                 {bufferingPeerInfo.bufferingUserId === currentUser?.userId
                   ? "Catching up to the group"
                   : `${bufferingPeerInfo.bufferingUserName || "A peer"} is catching up`}
               </div>
-              <div className="text-xs text-[#8e8c85]">
+              <div className="text-xs text-[#8e8c85] dark:text-[#95928a]">
                 {bufferingPeerInfo.bufferingUserId === currentUser?.userId
                   ? "Others are paused for you"
                   : "Playback paused while they buffer"}
@@ -1437,6 +1449,7 @@ export default function RoomPage() {
             </div>
           </div>
         )}
+
 
         {/* Playback Controls Bar (active when not in screen share) */}
         {!screenSharer && (

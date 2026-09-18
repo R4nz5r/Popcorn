@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getOrCreateAnonymousUser, updateUserName } from "@/lib/identity";
 import { sanitizeRoomCode } from "@/lib/code-generator";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function LandingPage() {
   const [userName, setUserName] = useState(() => {
@@ -91,23 +92,28 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="min-h-screen w-full flex items-center justify-center bg-[#f3efe8] p-4 sm:p-6">
-      <div className="w-full max-w-[420px] bg-white rounded-[28px] p-8 sm:p-10 shadow-[0_4px_24px_rgba(0,0,0,0.03)] border border-[#e8e4dc]">
+    <main className="relative min-h-screen w-full flex items-center justify-center bg-[#f3efe8] dark:bg-[#121110] p-4 sm:p-6 transition-colors duration-200">
+      {/* Theme Toggle in top right */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-[420px] bg-white dark:bg-[#1c1b18] rounded-[28px] p-8 sm:p-10 shadow-[0_4px_24px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-[#e8e4dc] dark:border-[#2b2925] transition-colors">
         {/* Header */}
         <div className="flex items-center justify-center gap-2.5 mb-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icon.svg" alt="Popcorn" className="w-8 h-8 select-none" />
-          <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[#1f1f1d]">
+          <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[#1f1f1d] dark:text-[#f3efe8]">
             Popcorn
           </h1>
         </div>
-        <p className="text-sm sm:text-base text-[#686762] text-center font-normal">
+        <p className="text-sm sm:text-base text-[#686762] dark:text-[#a8a49c] text-center font-normal">
           Sync any video with friends, live
         </p>
 
         {/* Your name input */}
         <div className="mt-6 text-left">
-          <label className="block text-xs font-semibold text-[#8e8c85] uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-semibold text-[#8e8c85] dark:text-[#95928a] uppercase tracking-wider mb-1.5">
             Your name
           </label>
           <input
@@ -119,7 +125,7 @@ export default function LandingPage() {
               if (error) setError(null);
             }}
             maxLength={30}
-            className="w-full px-4 py-3 bg-white border border-[#d6d2c9] focus:border-[#262624] focus:ring-1 focus:ring-[#262624] outline-none rounded-xl text-[#1f1f1d] placeholder:text-[#99968f] text-sm transition-colors"
+            className="w-full px-4 py-3 bg-white dark:bg-[#242320] border border-[#d6d2c9] dark:border-[#33312b] focus:border-[#262624] dark:focus:border-[#f59e0b] focus:ring-1 focus:ring-[#262624] dark:focus:ring-[#f59e0b] outline-none rounded-xl text-[#1f1f1d] dark:text-[#f3efe8] placeholder:text-[#99968f] dark:placeholder:text-[#737069] text-sm transition-colors"
           />
         </div>
 
@@ -133,12 +139,12 @@ export default function LandingPage() {
             }
           }}
           disabled={isCreating}
-          className="w-full mt-4 py-3.5 px-4 bg-[#262624] hover:bg-[#1a1a18] active:scale-[0.99] text-white font-medium rounded-xl transition-all duration-150 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer text-base"
+          className="w-full mt-4 py-3.5 px-4 bg-[#262624] hover:bg-[#1a1a18] dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] active:scale-[0.99] text-white font-medium rounded-xl transition-all duration-150 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer text-base shadow-xs"
         >
           {isCreating ? (
             <>
               <svg
-                className="animate-spin h-4 w-4 text-white"
+                className="animate-spin h-4 w-4 text-current"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -166,8 +172,8 @@ export default function LandingPage() {
 
         {/* Divider */}
         <div className="relative my-6 flex items-center justify-center">
-          <div className="w-full border-t border-[#e5e2db]" />
-          <span className="absolute bg-white px-3 text-sm text-[#8e8c85] font-normal">
+          <div className="w-full border-t border-[#e5e2db] dark:border-[#2b2925]" />
+          <span className="absolute bg-white dark:bg-[#1c1b18] px-3 text-sm text-[#8e8c85] dark:text-[#95928a] font-normal">
             or
           </span>
         </div>
@@ -193,7 +199,7 @@ export default function LandingPage() {
             maxLength={10}
             autoCapitalize="characters"
             spellCheck={false}
-            className="flex-1 min-w-0 px-4 py-3 bg-white border border-[#d6d2c9] focus:border-[#262624] focus:ring-1 focus:ring-[#262624] outline-none rounded-xl text-[#1f1f1d] placeholder:text-[#99968f] text-sm tracking-wider transition-colors"
+            className="flex-1 min-w-0 px-4 py-3 bg-white dark:bg-[#242320] border border-[#d6d2c9] dark:border-[#33312b] focus:border-[#262624] dark:focus:border-[#f59e0b] focus:ring-1 focus:ring-[#262624] dark:focus:ring-[#f59e0b] outline-none rounded-xl text-[#1f1f1d] dark:text-[#f3efe8] placeholder:text-[#99968f] dark:placeholder:text-[#737069] text-sm tracking-wider transition-colors"
           />
           <button
             type="button"
@@ -204,7 +210,7 @@ export default function LandingPage() {
               }
             }}
             disabled={isJoining}
-            className="px-6 py-3 bg-white hover:bg-[#faf8f5] active:scale-[0.99] border border-[#d6d2c9] text-[#1f1f1d] font-medium rounded-xl text-sm transition-colors disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer shrink-0"
+            className="px-6 py-3 bg-white dark:bg-[#242320] hover:bg-[#faf8f5] dark:hover:bg-[#2c2b27] active:scale-[0.99] border border-[#d6d2c9] dark:border-[#33312b] text-[#1f1f1d] dark:text-[#f3efe8] font-medium rounded-xl text-sm transition-colors disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
             {isJoining ? "Joining..." : "Join"}
           </button>
@@ -212,7 +218,7 @@ export default function LandingPage() {
 
         {/* Error message */}
         {error && (
-          <div className="mt-4 p-3 rounded-xl bg-[#fdf2f2] border border-[#fbd5d5] text-[#9b1c1c] text-xs font-medium text-center transition-all">
+          <div className="mt-4 p-3 rounded-xl bg-[#fdf2f2] dark:bg-[#331818] border border-[#fbd5d5] dark:border-[#522525] text-[#9b1c1c] dark:text-[#fca5a5] text-xs font-medium text-center transition-all">
             {error}
           </div>
         )}
@@ -220,3 +226,4 @@ export default function LandingPage() {
     </main>
   );
 }
+

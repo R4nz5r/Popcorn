@@ -184,7 +184,9 @@ export default function YouTubePlayer({
           // ignore
         }
       }
-      setIsMutedByPolicy(false);
+      setTimeout(() => {
+        setIsMutedByPolicy(false);
+      }, 0);
     }
   }, [isHost, isMutedByPolicy]);
 
