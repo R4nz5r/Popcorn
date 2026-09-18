@@ -94,10 +94,14 @@ export default function LandingPage() {
     <main className="min-h-screen w-full flex items-center justify-center bg-[#f3efe8] p-4 sm:p-6">
       <div className="w-full max-w-[420px] bg-white rounded-[28px] p-8 sm:p-10 shadow-[0_4px_24px_rgba(0,0,0,0.03)] border border-[#e8e4dc]">
         {/* Header */}
-        <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[#1f1f1d] text-center">
-          Popcorn
-        </h1>
-        <p className="text-sm sm:text-base text-[#686762] text-center mt-1 font-normal">
+        <div className="flex items-center justify-center gap-2.5 mb-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="Popcorn" className="w-8 h-8 select-none" />
+          <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-[#1f1f1d]">
+            Popcorn
+          </h1>
+        </div>
+        <p className="text-sm sm:text-base text-[#686762] text-center font-normal">
           Sync any video with friends, live
         </p>
 

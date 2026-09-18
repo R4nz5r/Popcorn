@@ -970,9 +970,11 @@ export default function RoomPage() {
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <Link
             href="/"
-            className="text-sm sm:text-base font-bold tracking-tight text-[#1f1f1d] hover:opacity-80 shrink-0"
+            className="flex items-center gap-1.5 text-sm sm:text-base font-bold tracking-tight text-[#1f1f1d] hover:opacity-80 shrink-0"
           >
-            Popcorn
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.svg" alt="Popcorn" className="w-5 h-5 select-none" />
+            <span>Popcorn</span>
           </Link>
 
           {/* Desktop Room pill */}
