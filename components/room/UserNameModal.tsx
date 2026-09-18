@@ -82,7 +82,7 @@ export default function UserNameModal({
                 if (error) setError(null);
               }}
               maxLength={30}
-              className="w-full px-4 py-3 text-sm rounded-xl border border-[#d6d2c9] text-[#1f1f1d] focus:border-[#262624] focus:ring-1 focus:ring-[#262624] outline-none transition-colors"
+              className="w-full px-4 py-3 text-base md:text-sm rounded-xl border border-[#d6d2c9] text-[#1f1f1d] focus:border-[#262624] focus:ring-1 focus:ring-[#262624] outline-none transition-colors"
             />
             {error && (
               <p className="text-xs text-[#9b1c1c] font-medium mt-1.5">{error}</p>

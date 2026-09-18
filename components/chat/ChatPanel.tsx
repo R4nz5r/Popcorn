@@ -121,7 +121,7 @@ export default function ChatPanel({
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Send a message"
-              className="w-full resize-none p-3.5 text-sm text-[#1f1f1d] placeholder-[#8e8c85] bg-transparent outline-none rounded-2xl"
+              className="w-full resize-none p-3.5 text-base md:text-sm text-[#1f1f1d] placeholder-[#8e8c85] bg-transparent outline-none rounded-2xl"
             />
             {inputText.trim() && (
               <button
@@ -184,7 +184,7 @@ export default function ChatPanel({
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="Message"
-                  className="w-full px-3.5 py-2 text-sm text-[#1f1f1d] placeholder-[#8e8c85] bg-transparent outline-none rounded-xl"
+                  className="w-full px-3.5 py-2 text-base md:text-sm text-[#1f1f1d] placeholder-[#8e8c85] bg-transparent outline-none rounded-xl"
                 />
               </div>
             </form>

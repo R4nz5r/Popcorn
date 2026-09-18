@@ -104,7 +104,7 @@ export default function AddSourceModal({
                 setErrorMessage("");
               }}
               placeholder="e.g. https://www.youtube.com/watch?v=..."
-              className="w-full px-4 py-3 text-sm rounded-xl border border-[#d6d2c9] text-[#1f1f1d] focus:border-[#1f1f1d] outline-none"
+              className="w-full px-4 py-3 text-base md:text-sm rounded-xl border border-[#d6d2c9] text-[#1f1f1d] focus:border-[#1f1f1d] outline-none"
             />
             {errorMessage && (
               <p className="text-xs text-red-600 font-medium">{errorMessage}</p>
