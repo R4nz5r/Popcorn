@@ -42,13 +42,6 @@ export const metadata: Metadata = {
         type: "image/png",
         alt: "Popcorn - Sync any video with friends, live",
       },
-      {
-        url: "/popcorn.png",
-        width: 512,
-        height: 512,
-        type: "image/png",
-        alt: "Popcorn Logo",
-      },
     ],
     locale: "en_US",
     type: "website",
