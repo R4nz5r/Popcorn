@@ -29,7 +29,7 @@ import VoiceControls from "@/components/voice/VoiceControls";
 import VoiceSettingsModal from "@/components/voice/VoiceSettingsModal";
 import FloatingReactions from "@/components/player/FloatingReactions";
 import { soundFx } from "@/lib/sound";
-import ChatPanel, { ChatMessage } from "@/components/chat/ChatPanel";
+import ChatPanel, { ChatMessage, TypingUser } from "@/components/chat/ChatPanel";
 import ParticipantList, { getInitials } from "@/components/room/ParticipantList";
 import AddSourceModal from "@/components/room/AddSourceModal";
 import UserNameModal from "@/components/room/UserNameModal";
@@ -99,6 +99,8 @@ export default function RoomPage() {
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const [incomingReaction, setIncomingReaction] = useState<{ id: string; emoji: string; sender?: string } | null>(null);
+  const [typingPeers, setTypingPeers] = useState<TypingUser[]>([]);
+  const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const voiceManagerRef = useRef<VoiceCallManager | null>(null);
 
   // Player adapter and sync lifecycle references
@@ -446,6 +448,7 @@ export default function RoomPage() {
           },
         ];
       });
+      setTypingPeers((prev) => prev.filter((p) => p.displayName !== incomingMsg.sender));
     }
 
     function handleChatHistory(payload: ChatHistoryPayload) {
@@ -595,6 +598,32 @@ export default function RoomPage() {
       setIncomingReaction(data);
     }
 
+    function handlePeerTyping(data: { userId: string; displayName: string; isTyping: boolean }) {
+      if (!data?.userId || data.userId === currentUser?.userId) return;
+
+      const existingTimeout = typingTimeoutsRef.current.get(data.userId);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        typingTimeoutsRef.current.delete(data.userId);
+      }
+
+      if (!data.isTyping) {
+        setTypingPeers((prev) => prev.filter((p) => p.userId !== data.userId));
+      } else {
+        setTypingPeers((prev) => {
+          const exists = prev.some((p) => p.userId === data.userId);
+          if (exists) return prev;
+          return [...prev, { userId: data.userId, displayName: data.displayName }];
+        });
+
+        const timeout = setTimeout(() => {
+          setTypingPeers((prev) => prev.filter((p) => p.userId !== data.userId));
+          typingTimeoutsRef.current.delete(data.userId);
+        }, 3500);
+        typingTimeoutsRef.current.set(data.userId, timeout);
+      }
+    }
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
@@ -613,6 +642,7 @@ export default function RoomPage() {
     socket.on("voice_signal", handleVoiceSignal);
     socket.on("force_mute_mic", handleForceMuteMic);
     socket.on("receive_reaction", handleReceiveReaction);
+    socket.on("peer_typing", handlePeerTyping);
 
     if (socket.connected) {
       handleConnect();
@@ -667,6 +697,9 @@ export default function RoomPage() {
       socket.off("voice_signal", handleVoiceSignal);
       socket.off("force_mute_mic", handleForceMuteMic);
       socket.off("receive_reaction", handleReceiveReaction);
+      socket.off("peer_typing", handlePeerTyping);
+      typingTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      typingTimeoutsRef.current.clear();
       webrtc.destroy();
       webrtcManagerRef.current = null;
       if (voiceManagerRef.current) {
@@ -1143,6 +1176,31 @@ export default function RoomPage() {
       });
     },
     [code, currentUser?.displayName]
+  );
+
+  const handleSeekToTimestamp = useCallback(
+    (targetSeconds: number) => {
+      const clamped = Math.max(0, Math.min(duration > 0 ? duration : 86400, targetSeconds));
+      if (isHost) {
+        handleSeek(clamped);
+      } else {
+        isProgrammaticActionRef.current = true;
+        setCurrentTime(clamped);
+        playerAdapterRef.current?.seekTo(clamped, isPlaying);
+      }
+    },
+    [isHost, duration, handleSeek, isPlaying]
+  );
+
+  const handleSendTyping = useCallback(
+    (isTyping: boolean) => {
+      if (!socketRef.current?.connected || !code) return;
+      socketRef.current.emit("typing", {
+        roomId: code,
+        isTyping,
+      });
+    },
+    [code]
   );
 
   if (isLoading) {
@@ -1761,6 +1819,10 @@ export default function RoomPage() {
           currentUserName={currentUser?.displayName || "You"}
           messages={chatMessages}
           onSendMessage={handleSendChatMessage}
+          onSeekToTimestamp={handleSeekToTimestamp}
+          currentTime={currentTime}
+          typingUsers={typingPeers}
+          onTyping={handleSendTyping}
           participantContent={
             <ParticipantList
               participants={

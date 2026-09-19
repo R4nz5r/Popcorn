@@ -146,6 +146,13 @@ function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
     }
   }
 
+  // 1d. Clear any typing state for departing peer
+  io.to(roomId).emit("peer_typing", {
+    userId: departingPeer.userId,
+    displayName: departingPeer.displayName,
+    isTyping: false,
+  });
+
   // 2. Immediately broadcast updated participants to remaining peers in the room
   broadcastParticipants(io, roomId, room);
 
@@ -1062,6 +1069,24 @@ io.on("connection", (socket: Socket) => {
         emoji: String(emoji).slice(0, 8),
         sender: sender ? String(sender).slice(0, 30) : undefined,
         timestamp: Date.now(),
+      });
+    });
+
+    // Realtime Typing Indicator
+    socket.on("typing", (data: { roomId: string; isTyping: boolean }) => {
+      const { roomId, isTyping } = data;
+      if (!roomId) return;
+
+      const room = rooms.get(roomId);
+      if (!room) return;
+
+      const peer = room.peers.get(socket.id);
+      if (!peer) return;
+
+      socket.to(roomId).emit("peer_typing", {
+        userId: peer.userId,
+        displayName: peer.displayName,
+        isTyping: Boolean(isTyping),
       });
     });
 
