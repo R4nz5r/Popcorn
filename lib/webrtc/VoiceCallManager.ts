@@ -22,6 +22,42 @@ const RTC_CONFIGURATION: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+function tuneOpusSdp(sdp: string): string {
+  // Find Opus payload type (usually 111)
+  const opusMatch = sdp.match(/a=rtpmap:(\d+) opus\/48000/i);
+  if (!opusMatch) return sdp;
+  const pt = opusMatch[1];
+
+  const fmtpRegex = new RegExp(`a=fmtp:${pt} ([^\\r\\n]+)`);
+  const fmtpMatch = sdp.match(fmtpRegex);
+
+  const desiredSettings: Record<string, string> = {
+    maxaveragebitrate: "64000",
+    useinbandfec: "1",
+    stereo: "0",
+    "sprop-stereo": "0",
+    cbr: "0",
+  };
+
+  if (fmtpMatch) {
+    const existingParams = fmtpMatch[1].trim();
+    const parts = existingParams.split(";").map((p) => p.trim()).filter(Boolean);
+    const paramMap: Record<string, string> = {};
+    for (const part of parts) {
+      const [k, v] = part.split("=");
+      if (k) paramMap[k.trim()] = v !== undefined ? v.trim() : "";
+    }
+    Object.assign(paramMap, desiredSettings);
+    const newParams = Object.entries(paramMap)
+      .map(([k, v]) => (v ? `${k}=${v}` : k))
+      .join(";");
+    return sdp.replace(fmtpRegex, `a=fmtp:${pt} ${newParams}`);
+  } else {
+    const newFmtp = `a=fmtp:${pt} maxaveragebitrate=64000;useinbandfec=1;stereo=0;sprop-stereo=0;cbr=0`;
+    return sdp.replace(opusMatch[0], `${opusMatch[0]}\r\n${newFmtp}`);
+  }
+}
+
 export interface VoiceCallManagerCallbacks {
   onLocalStream?: (stream: MediaStream) => void;
   onRemoteStream?: (socketId: string, stream: MediaStream) => void;
@@ -38,7 +74,6 @@ export class VoiceCallManager {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
   private audioElements: Map<string, HTMLAudioElement> = new Map();
-  private remoteAudioSources: Map<string, MediaStreamAudioSourceNode> = new Map();
 
   private isMuted: boolean = false;
   private isDeafened: boolean = false;
@@ -98,9 +133,18 @@ export class VoiceCallManager {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: false }, // Disables AGC breathing noise/hiss rush after speaking
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: 48000 },
+          ...({
+            googEchoCancellation: { ideal: true },
+            googAutoGainControl: { ideal: false },
+            googNoiseSuppression: { ideal: true },
+            googHighpassFilter: { ideal: true }, // Cuts low-frequency rumble and mic pops
+            googTypingNoiseDetection: { ideal: true },
+          } as any),
         },
         video: false,
       });
@@ -182,17 +226,6 @@ export class VoiceCallManager {
       audio.muted = deafened;
     });
 
-    // Mute/unmute Web Audio destination routing
-    this.remoteAudioSources.forEach((source) => {
-      try {
-        if (deafened) {
-          source.disconnect();
-        } else if (this.audioContext) {
-          source.connect(this.audioContext.destination);
-        }
-      } catch {}
-    });
-
     // If deafened, automatically mute local microphone as well
     if (deafened && !this.isMuted) {
       this.setMuted(true);
@@ -272,14 +305,6 @@ export class VoiceCallManager {
 
     this.candidateQueues.delete(socketId);
 
-    const source = this.remoteAudioSources.get(socketId);
-    if (source) {
-      try {
-        source.disconnect();
-      } catch {}
-      this.remoteAudioSources.delete(socketId);
-    }
-
     const audio = this.audioElements.get(socketId);
     if (audio) {
       audio.pause();
@@ -353,11 +378,18 @@ export class VoiceCallManager {
   private async initiateOffer(targetSocketId: string): Promise<void> {
     try {
       const pc = this.peerConnections.get(targetSocketId) || this.createPeerConnection(targetSocketId);
-      const offer = await pc.createOffer({
+      let offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false,
       });
+      if (offer.sdp) {
+        offer = {
+          type: offer.type,
+          sdp: tuneOpusSdp(offer.sdp),
+        };
+      }
       await pc.setLocalDescription(offer);
+      this.applySenderBitrate(pc);
 
       this.socket.emit("voice_signal", {
         toSocketId: targetSocketId,
@@ -394,8 +426,15 @@ export class VoiceCallManager {
         if (c) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
       }
 
-      const answer = await pc.createAnswer();
+      let answer = await pc.createAnswer();
+      if (answer.sdp) {
+        answer = {
+          type: answer.type,
+          sdp: tuneOpusSdp(answer.sdp),
+        };
+      }
       await pc.setLocalDescription(answer);
+      this.applySenderBitrate(pc);
 
       this.socket.emit("voice_signal", {
         toSocketId: fromSocketId,
@@ -415,6 +454,7 @@ export class VoiceCallManager {
       if (!pc || pc.signalingState === "closed") return;
 
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      this.applySenderBitrate(pc);
 
       const queue = this.candidateQueues.get(fromSocketId) || [];
       while (queue.length > 0) {
@@ -424,6 +464,22 @@ export class VoiceCallManager {
     } catch (err) {
       console.error(`[VoiceCallManager] Failed to handle answer from ${fromSocketId}:`, err);
     }
+  }
+
+  private applySenderBitrate(pc: RTCPeerConnection): void {
+    try {
+      const senders = pc.getSenders();
+      for (const sender of senders) {
+        if (sender.track && sender.track.kind === "audio") {
+          const params = sender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) {
+            params.encodings = [{}];
+          }
+          params.encodings[0].maxBitrate = 64000;
+          sender.setParameters(params).catch(() => {});
+        }
+      }
+    } catch {}
   }
 
   private async handleCandidate(fromSocketId: string, candidateInit: RTCIceCandidateInit): Promise<void> {
@@ -472,24 +528,6 @@ export class VoiceCallManager {
       playPromise.catch((err) => {
         console.warn(`[VoiceCallManager] Audio play note for peer ${socketId}:`, err);
       });
-    }
-
-    // 2. Direct Web Audio API pipe to device speaker (bypasses iOS Safari <audio> element bugs)
-    try {
-      if (this.audioContext) {
-        if (this.audioContext.state === "suspended") {
-          this.audioContext.resume().catch(() => {});
-        }
-        if (!this.remoteAudioSources.has(socketId)) {
-          const source = this.audioContext.createMediaStreamSource(stream);
-          if (!this.isDeafened) {
-            source.connect(this.audioContext.destination);
-          }
-          this.remoteAudioSources.set(socketId, source);
-        }
-      }
-    } catch (e) {
-      console.warn("[VoiceCallManager] Web Audio fallback note:", e);
     }
   }
 
@@ -624,13 +662,6 @@ export class VoiceCallManager {
     });
     this.peerConnections.clear();
     this.candidateQueues.clear();
-
-    this.remoteAudioSources.forEach((source) => {
-      try {
-        source.disconnect();
-      } catch {}
-    });
-    this.remoteAudioSources.clear();
 
     this.audioElements.forEach((audio) => {
       audio.pause();
