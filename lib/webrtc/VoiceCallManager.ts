@@ -7,7 +7,19 @@ const RTC_CONFIGURATION: RTCConfiguration = {
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
+    // Free public TURN servers from Open Relay (Metered) to pierce Carrier-Grade NAT / mobile cellular / firewalls
+    {
+      urls: [
+        "stun:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelay",
+      credential: "openrelay",
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export interface VoiceCallManagerCallbacks {
@@ -26,11 +38,12 @@ export class VoiceCallManager {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
   private audioElements: Map<string, HTMLAudioElement> = new Map();
+  private remoteAudioSources: Map<string, MediaStreamAudioSourceNode> = new Map();
 
   private isMuted: boolean = false;
   private isDeafened: boolean = false;
 
-  // Audio analysis for speaking detection
+  // Audio analysis for speaking detection and hardware audio output
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
@@ -92,10 +105,15 @@ export class VoiceCallManager {
         video: false,
       });
 
+      // Explicitly ensure tracks are enabled
+      stream.getAudioTracks().forEach((t) => {
+        t.enabled = true;
+      });
+
       this.localStream = stream;
       this.callbacks.onLocalStream?.(stream);
 
-      // Start local speaking energy detector
+      // Start local speaking energy detector and prime AudioContext
       this.setupSpeakingDetector(stream);
 
       // Tell the server we joined voice
@@ -162,6 +180,17 @@ export class VoiceCallManager {
     // Mute/unmute all remote audio elements
     this.audioElements.forEach((audio) => {
       audio.muted = deafened;
+    });
+
+    // Mute/unmute Web Audio destination routing
+    this.remoteAudioSources.forEach((source) => {
+      try {
+        if (deafened) {
+          source.disconnect();
+        } else if (this.audioContext) {
+          source.connect(this.audioContext.destination);
+        }
+      } catch {}
     });
 
     // If deafened, automatically mute local microphone as well
@@ -243,6 +272,14 @@ export class VoiceCallManager {
 
     this.candidateQueues.delete(socketId);
 
+    const source = this.remoteAudioSources.get(socketId);
+    if (source) {
+      try {
+        source.disconnect();
+      } catch {}
+      this.remoteAudioSources.delete(socketId);
+    }
+
     const audio = this.audioElements.get(socketId);
     if (audio) {
       audio.pause();
@@ -287,6 +324,20 @@ export class VoiceCallManager {
       const remoteStream = event.streams[0] || new MediaStream([event.track]);
       this.playRemoteStream(targetSocketId, remoteStream);
       this.callbacks.onRemoteStream?.(targetSocketId, remoteStream);
+
+      event.track.onunmute = () => {
+        console.log(`[VoiceCallManager] Track unmuted from ${targetSocketId}`);
+        this.playRemoteStream(targetSocketId, remoteStream);
+      };
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[VoiceCallManager] ICE state with ${targetSocketId}: ${pc.iceConnectionState}`);
+      if (pc.iceConnectionState === "failed") {
+        try {
+          pc.restartIce();
+        } catch {}
+      }
     };
 
     pc.onconnectionstatechange = () => {
@@ -393,24 +444,52 @@ export class VoiceCallManager {
   }
 
   private playRemoteStream(socketId: string, stream: MediaStream): void {
+    // 1. Standard HTMLAudioElement playback (visible in DOM layout to prevent Safari suspension)
     let audio = this.audioElements.get(socketId);
     if (!audio) {
       audio = document.createElement("audio");
       audio.autoplay = true;
       audio.setAttribute("playsinline", "true");
       audio.muted = this.isDeafened;
-      audio.style.display = "none";
-      // Crucial for iOS Safari & WebKit: detached audio elements are muted by Safari policy
+      audio.volume = 1.0;
+      audio.style.position = "fixed";
+      audio.style.pointerEvents = "none";
+      audio.style.opacity = "0.01";
+      audio.style.width = "1px";
+      audio.style.height = "1px";
+      audio.style.bottom = "0";
+      audio.style.left = "0";
+      audio.style.zIndex = "-9999";
       document.body.appendChild(audio);
       this.audioElements.set(socketId, audio);
     }
 
-    audio.srcObject = stream;
+    if (audio.srcObject !== stream) {
+      audio.srcObject = stream;
+    }
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
-        console.warn(`[VoiceCallManager] Autoplay prevented for peer ${socketId}:`, err);
+        console.warn(`[VoiceCallManager] Audio play note for peer ${socketId}:`, err);
       });
+    }
+
+    // 2. Direct Web Audio API pipe to device speaker (bypasses iOS Safari <audio> element bugs)
+    try {
+      if (this.audioContext) {
+        if (this.audioContext.state === "suspended") {
+          this.audioContext.resume().catch(() => {});
+        }
+        if (!this.remoteAudioSources.has(socketId)) {
+          const source = this.audioContext.createMediaStreamSource(stream);
+          if (!this.isDeafened) {
+            source.connect(this.audioContext.destination);
+          }
+          this.remoteAudioSources.set(socketId, source);
+        }
+      }
+    } catch (e) {
+      console.warn("[VoiceCallManager] Web Audio fallback note:", e);
     }
   }
 
@@ -424,6 +503,10 @@ export class VoiceCallManager {
       if (!AudioCtx) return;
 
       this.audioContext = new AudioCtx();
+      if (this.audioContext.state === "suspended") {
+        this.audioContext.resume().catch(() => {});
+      }
+
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 512;
       this.analyser.smoothingTimeConstant = 0.2;
@@ -541,6 +624,13 @@ export class VoiceCallManager {
     });
     this.peerConnections.clear();
     this.candidateQueues.clear();
+
+    this.remoteAudioSources.forEach((source) => {
+      try {
+        source.disconnect();
+      } catch {}
+    });
+    this.remoteAudioSources.clear();
 
     this.audioElements.forEach((audio) => {
       audio.pause();
