@@ -205,8 +205,8 @@ export default function ParticipantList({
         )}
       </div>
 
-      {/* Avatar stack (vertical list matching design/2-watch-room.jpg) */}
-      <div className="flex flex-col gap-2">
+      {/* Avatar list (horizontal row) */}
+      <div className="flex flex-row items-center gap-2 flex-wrap">
         {displayAvatars.map((avatar) => {
           const isRemaining = avatar.id === "remaining";
           const voiceInfo = voiceUsers?.find((v) => v.userId === avatar.id);

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { soundFx } from "@/lib/sound";
 
 export interface ChatMessage {
   id: string;
@@ -24,8 +25,13 @@ interface ChatPanelProps {
   currentTime?: number;
   typingUsers?: TypingUser[];
   onTyping?: (isTyping: boolean) => void;
+  onSendReaction?: (emoji: string) => void;
+  areReactionsEnabled?: boolean;
+  onToggleReactionsEnabled?: () => void;
   className?: string;
 }
+
+const EMOJI_OPTIONS = ["🍿", "❤️", "😂", "😮", "🔥", "👏"];
 
 export function formatSecondsToTimestamp(totalSeconds: number): string {
   if (!totalSeconds || isNaN(totalSeconds) || totalSeconds < 0) return "0:00";
@@ -60,7 +66,6 @@ export function renderMessageContent(
   text: string,
   onSeek?: (seconds: number) => void
 ): React.ReactNode {
-  // Matches mm:ss and hh:mm:ss timestamps like 1:23, 02:45, 1:12:30
   const regex = /\b(?:(\d{1,2}):)?([0-5]?\d):([0-5]\d)\b/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -114,15 +119,21 @@ export default function ChatPanel({
   currentTime,
   typingUsers = [],
   onTyping,
+  onSendReaction,
+  areReactionsEnabled = true,
+  onToggleReactionsEnabled,
   className = "",
 }: ChatPanelProps) {
   const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isMobileExpanded, setIsMobileExpanded] = useState(true);
+  const [isReactionMenuOpen, setIsReactionMenuOpen] = useState(false);
+
   const desktopFeedRef = useRef<HTMLDivElement>(null);
   const mobileFeedRef = useRef<HTMLDivElement>(null);
   const desktopInputRef = useRef<HTMLTextAreaElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
+  const reactionMenuRef = useRef<HTMLDivElement>(null);
 
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingActiveRef = useRef<boolean>(false);
@@ -153,6 +164,19 @@ export default function ChatPanel({
       clearTimeout(timer);
     };
   }, [activeMessages, typingUsers]);
+
+  // Click outside listener for reaction menu
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (reactionMenuRef.current && !reactionMenuRef.current.contains(e.target as Node)) {
+        setIsReactionMenuOpen(false);
+      }
+    }
+    if (isReactionMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isReactionMenuOpen]);
 
   // Clean up typing state on unmount
   useEffect(() => {
@@ -228,12 +252,16 @@ export default function ChatPanel({
     const updated = `${inputText}${prefix}${ts} `;
     handleInputChange(updated);
 
-    // Focus back on input
     if (desktopInputRef.current) {
       desktopInputRef.current.focus();
     } else if (mobileInputRef.current) {
       mobileInputRef.current.focus();
     }
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    onSendReaction?.(emoji);
+    soundFx.playReactionPop();
   };
 
   const getTypingLabel = () => {
@@ -249,7 +277,7 @@ export default function ChatPanel({
 
   return (
     <>
-      {/* DESKTOP VIEW (md: and up) - Matches design/2-watch-room.jpg */}
+      {/* DESKTOP VIEW (md: and up) */}
       <div
         className={`hidden md:flex flex-col w-full bg-white dark:bg-[#1c1b18] rounded-3xl border border-[#d6d2c9] dark:border-[#2b2925] p-6 shadow-xs transition-colors ${className}`}
       >
@@ -291,8 +319,48 @@ export default function ChatPanel({
           )}
         </div>
 
-        {/* Input box matching design/2-watch-room.jpg */}
-        <form onSubmit={handleSendMessage} className="w-full">
+        {/* Input box */}
+        <form onSubmit={handleSendMessage} className="w-full relative">
+          {/* Reaction Popover */}
+          {isReactionMenuOpen && (
+            <div
+              ref={reactionMenuRef}
+              className="absolute left-3 bottom-14 z-30 flex flex-col gap-2 bg-white/95 dark:bg-[#1a1917]/95 backdrop-blur-md p-2 rounded-2xl border border-[#d6d2c9] dark:border-[#33312b] shadow-xl animate-in fade-in zoom-in-95 duration-150"
+            >
+              <div className="flex items-center gap-1">
+                {EMOJI_OPTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => handleEmojiSelect(emoji)}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 hover:scale-125 active:scale-95 transition-transform cursor-pointer text-lg select-none"
+                    title={`React with ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Floating Reaction Video Visibility Toggle */}
+              {onToggleReactionsEnabled && (
+                <div className="pt-1.5 border-t border-[#e5e0d4] dark:border-[#2b2925] flex items-center justify-between px-1 text-[11px]">
+                  <span className="text-[#8e8c85] dark:text-[#95928a]">Video reactions</span>
+                  <button
+                    type="button"
+                    onClick={onToggleReactionsEnabled}
+                    className={`px-2 py-0.5 rounded font-medium cursor-pointer transition-colors ${
+                      areReactionsEnabled
+                        ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-500/30"
+                        : "bg-black/10 dark:bg-white/10 text-[#8e8c85] dark:text-[#95928a]"
+                    }`}
+                  >
+                    {areReactionsEnabled ? "Visible" : "Hidden"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="relative rounded-2xl border border-[#d6d2c9] dark:border-[#33312b] bg-white dark:bg-[#242320] transition-all focus-within:border-[#1f1f1d] dark:focus-within:border-[#f59e0b] focus-within:ring-1 focus-within:ring-[#1f1f1d] dark:focus-within:ring-[#f59e0b]">
             <textarea
               ref={desktopInputRef}
@@ -304,21 +372,39 @@ export default function ChatPanel({
               className="w-full resize-none p-3.5 pb-10 text-base md:text-sm text-[#1f1f1d] dark:text-[#f3efe8] placeholder-[#8e8c85] dark:placeholder-[#737069] bg-transparent outline-none rounded-2xl"
             />
 
-            {/* Quick current timestamp insert button */}
-            {currentTime !== undefined && currentTime >= 0 && (
+            {/* Desktop Action Buttons (Left) */}
+            <div className="absolute left-3 bottom-2.5 flex items-center gap-1.5">
+              {/* Quick Timestamp Button */}
+              {currentTime !== undefined && currentTime >= 0 && (
+                <button
+                  type="button"
+                  onClick={handleInsertTimestamp}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-mono font-medium text-[#8e8c85] hover:text-amber-600 dark:text-[#95928a] dark:hover:text-amber-400 bg-[#f4f1ea] hover:bg-amber-500/15 dark:bg-[#1a1917] dark:hover:bg-amber-500/20 px-2 py-1 rounded-lg border border-[#e5e0d4] dark:border-[#33312b] cursor-pointer transition-colors"
+                  title="Insert current video timestamp into message"
+                >
+                  <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <circle cx="12" cy="12" r="9" strokeWidth="2" />
+                    <path strokeWidth="2" strokeLinecap="round" d="M12 7v5l3 3" />
+                  </svg>
+                  <span>+ {formatSecondsToTimestamp(currentTime)}</span>
+                </button>
+              )}
+
+              {/* Reaction Trigger Button */}
               <button
                 type="button"
-                onClick={handleInsertTimestamp}
-                className="absolute left-3 bottom-2.5 inline-flex items-center gap-1.5 text-[11px] font-mono font-medium text-[#8e8c85] hover:text-amber-600 dark:text-[#95928a] dark:hover:text-amber-400 bg-[#f4f1ea] hover:bg-amber-500/15 dark:bg-[#1a1917] dark:hover:bg-amber-500/20 px-2 py-1 rounded-lg border border-[#e5e0d4] dark:border-[#33312b] cursor-pointer transition-colors"
-                title="Insert current video timestamp into message"
+                onClick={() => setIsReactionMenuOpen((prev) => !prev)}
+                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all cursor-pointer select-none ${
+                  isReactionMenuOpen
+                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-400/50"
+                    : "bg-[#f4f1ea] hover:bg-[#eae5da] dark:bg-[#1a1917] dark:hover:bg-[#282622] text-[#1f1f1d] dark:text-[#f3efe8] border-[#e5e0d4] dark:border-[#33312b]"
+                }`}
+                title="Send quick reaction"
               >
-                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <circle cx="12" cy="12" r="9" strokeWidth="2" />
-                  <path strokeWidth="2" strokeLinecap="round" d="M12 7v5l3 3" />
-                </svg>
-                <span>+ {formatSecondsToTimestamp(currentTime)}</span>
+                <span>🍿</span>
+                <span className="text-[11px] font-medium hidden sm:inline">React</span>
               </button>
-            )}
+            </div>
 
             {inputText.trim() && (
               <button
@@ -332,7 +418,7 @@ export default function ChatPanel({
         </form>
       </div>
 
-      {/* MOBILE VIEW (< md) - Matches design/5-mobile-watch-room.jpg (Swipe-up Drawer) */}
+      {/* MOBILE VIEW (< md) */}
       <div
         className={`flex md:hidden flex-col w-full bg-white dark:bg-[#1c1b18] rounded-3xl border border-[#d6d2c9] dark:border-[#2b2925] p-5 shadow-sm transition-all duration-300 ${
           isMobileExpanded ? "max-h-[380px]" : "max-h-[70px] overflow-hidden"
@@ -350,7 +436,6 @@ export default function ChatPanel({
 
         {isMobileExpanded && (
           <>
-            {/* Mini participant content */}
             {participantContent && <div className="mb-3">{participantContent}</div>}
 
             {/* Mobile Messages list */}
@@ -389,6 +474,43 @@ export default function ChatPanel({
               )}
             </div>
 
+            {/* Mobile Reaction Menu */}
+            {isReactionMenuOpen && (
+              <div
+                ref={reactionMenuRef}
+                className="mb-2 flex flex-col gap-2 bg-white/95 dark:bg-[#1a1917]/95 backdrop-blur-md p-2 rounded-2xl border border-[#d6d2c9] dark:border-[#33312b] shadow-lg animate-in fade-in duration-150"
+              >
+                <div className="flex items-center justify-around">
+                  {EMOJI_OPTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleEmojiSelect(emoji)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:scale-125 active:scale-95 transition-transform text-lg"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                {onToggleReactionsEnabled && (
+                  <div className="pt-1.5 border-t border-[#e5e0d4] dark:border-[#2b2925] flex items-center justify-between px-1 text-[11px]">
+                    <span className="text-[#8e8c85] dark:text-[#95928a]">Video reactions</span>
+                    <button
+                      type="button"
+                      onClick={onToggleReactionsEnabled}
+                      className={`px-2 py-0.5 rounded font-medium ${
+                        areReactionsEnabled
+                          ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                          : "bg-black/10 dark:bg-white/10 text-[#8e8c85] dark:text-[#95928a]"
+                      }`}
+                    >
+                      {areReactionsEnabled ? "Visible" : "Hidden"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Mobile Input box */}
             <form onSubmit={handleSendMessage} className="w-full">
               <div className="relative flex items-center rounded-xl border border-[#d6d2c9] dark:border-[#33312b] bg-white dark:bg-[#242320] focus-within:border-[#1f1f1d] dark:focus-within:border-[#f59e0b] pr-2">
@@ -400,6 +522,16 @@ export default function ChatPanel({
                   placeholder="Message"
                   className="flex-1 px-3.5 py-2 text-base md:text-sm text-[#1f1f1d] dark:text-[#f3efe8] placeholder-[#8e8c85] dark:placeholder-[#737069] bg-transparent outline-none rounded-xl"
                 />
+
+                {/* Mobile Reaction Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsReactionMenuOpen((prev) => !prev)}
+                  className="shrink-0 p-1.5 rounded text-base hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                  title="React with emoji"
+                >
+                  🍿
+                </button>
 
                 {/* Mobile quick timestamp button */}
                 {currentTime !== undefined && currentTime >= 0 && (
@@ -419,7 +551,7 @@ export default function ChatPanel({
                 {inputText.trim() && (
                   <button
                     type="submit"
-                    className="shrink-0 ml-1 px-2.5 py-1 bg-[#262624] dark:bg-[#f5f2eb] text-white dark:text-[#141312] text-xs font-semibold rounded-lg"
+                    className="shrink-0 ml-1 px-2.5 py-1 bg-[#262624] dark:bg-[#f5f2eb] text-white dark:text-[#141312] text-xs font-semibold rounded-lg cursor-pointer"
                   >
                     Send
                   </button>

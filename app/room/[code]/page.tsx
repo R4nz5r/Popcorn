@@ -99,9 +99,31 @@ export default function RoomPage() {
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const [incomingReaction, setIncomingReaction] = useState<{ id: string; emoji: string; sender?: string } | null>(null);
+  const [areReactionsEnabled, setAreReactionsEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("popcorn_reactions_enabled") !== "false";
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  });
   const [typingPeers, setTypingPeers] = useState<TypingUser[]>([]);
   const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const voiceManagerRef = useRef<VoiceCallManager | null>(null);
+
+  const handleToggleReactionsEnabled = useCallback(() => {
+    setAreReactionsEnabled((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("popcorn_reactions_enabled", String(next));
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
 
   // Player adapter and sync lifecycle references
   const playerAdapterRef = useRef<PlayerAdapter | null>(null);
@@ -1764,8 +1786,8 @@ export default function RoomPage() {
 
           {/* Realtime Floating Reactions overlay */}
           <FloatingReactions
-            onSendReaction={handleSendReaction}
             incomingReaction={incomingReaction}
+            enabled={areReactionsEnabled}
           />
         </div>
 
@@ -1823,6 +1845,9 @@ export default function RoomPage() {
           currentTime={currentTime}
           typingUsers={typingPeers}
           onTyping={handleSendTyping}
+          onSendReaction={handleSendReaction}
+          areReactionsEnabled={areReactionsEnabled}
+          onToggleReactionsEnabled={handleToggleReactionsEnabled}
           participantContent={
             <ParticipantList
               participants={
