@@ -133,7 +133,10 @@ export default function ChatPanel({
   const mobileFeedRef = useRef<HTMLDivElement>(null);
   const desktopInputRef = useRef<HTMLTextAreaElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
-  const reactionMenuRef = useRef<HTMLDivElement>(null);
+  const desktopReactionMenuRef = useRef<HTMLDivElement>(null);
+  const mobileReactionMenuRef = useRef<HTMLDivElement>(null);
+  const desktopReactionBtnRef = useRef<HTMLButtonElement>(null);
+  const mobileReactionBtnRef = useRef<HTMLButtonElement>(null);
 
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingActiveRef = useRef<boolean>(false);
@@ -168,7 +171,13 @@ export default function ChatPanel({
   // Click outside listener for reaction menu
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (reactionMenuRef.current && !reactionMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const isInsideDesktop = desktopReactionMenuRef.current?.contains(target);
+      const isInsideMobile = mobileReactionMenuRef.current?.contains(target);
+      const isDesktopBtn = desktopReactionBtnRef.current?.contains(target);
+      const isMobileBtn = mobileReactionBtnRef.current?.contains(target);
+
+      if (!isInsideDesktop && !isInsideMobile && !isDesktopBtn && !isMobileBtn) {
         setIsReactionMenuOpen(false);
       }
     }
@@ -324,7 +333,8 @@ export default function ChatPanel({
           {/* Reaction Popover */}
           {isReactionMenuOpen && (
             <div
-              ref={reactionMenuRef}
+              ref={desktopReactionMenuRef}
+              onMouseDown={(e) => e.stopPropagation()}
               className="absolute left-3 bottom-14 z-30 flex flex-col gap-2 bg-white/95 dark:bg-[#1a1917]/95 backdrop-blur-md p-2 rounded-2xl border border-[#d6d2c9] dark:border-[#33312b] shadow-xl animate-in fade-in zoom-in-95 duration-150"
             >
               <div className="flex items-center gap-1">
@@ -392,6 +402,7 @@ export default function ChatPanel({
 
               {/* Reaction Trigger Button */}
               <button
+                ref={desktopReactionBtnRef}
                 type="button"
                 onClick={() => setIsReactionMenuOpen((prev) => !prev)}
                 className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all cursor-pointer select-none ${
@@ -477,7 +488,8 @@ export default function ChatPanel({
             {/* Mobile Reaction Menu */}
             {isReactionMenuOpen && (
               <div
-                ref={reactionMenuRef}
+                ref={mobileReactionMenuRef}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="mb-2 flex flex-col gap-2 bg-white/95 dark:bg-[#1a1917]/95 backdrop-blur-md p-2 rounded-2xl border border-[#d6d2c9] dark:border-[#33312b] shadow-lg animate-in fade-in duration-150"
               >
                 <div className="flex items-center justify-around">
@@ -525,6 +537,7 @@ export default function ChatPanel({
 
                 {/* Mobile Reaction Button */}
                 <button
+                  ref={mobileReactionBtnRef}
                   type="button"
                   onClick={() => setIsReactionMenuOpen((prev) => !prev)}
                   className="shrink-0 p-1.5 rounded text-base hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"

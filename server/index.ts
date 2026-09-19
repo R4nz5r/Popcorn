@@ -1064,7 +1064,7 @@ io.on("connection", (socket: Socket) => {
       const { roomId, emoji, sender } = data;
       if (!roomId || !emoji) return;
 
-      io.to(roomId).emit("receive_reaction", {
+      socket.to(roomId).emit("receive_reaction", {
         id: `react-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         emoji: String(emoji).slice(0, 8),
         sender: sender ? String(sender).slice(0, 30) : undefined,

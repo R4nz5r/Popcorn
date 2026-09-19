@@ -1190,6 +1190,13 @@ export default function RoomPage() {
 
   const handleSendReaction = useCallback(
     (emoji: string) => {
+      // Immediate local reaction feedback
+      setIncomingReaction({
+        id: `react-local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        emoji,
+        sender: "You",
+      });
+
       if (!socketRef.current?.connected || !code) return;
       socketRef.current.emit("send_reaction", {
         roomId: code,
