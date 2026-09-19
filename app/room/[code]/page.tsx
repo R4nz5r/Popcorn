@@ -27,6 +27,8 @@ import { WebRTCManager } from "@/lib/webrtc/WebRTCManager";
 import { VoiceCallManager } from "@/lib/webrtc/VoiceCallManager";
 import VoiceControls from "@/components/voice/VoiceControls";
 import VoiceSettingsModal from "@/components/voice/VoiceSettingsModal";
+import FloatingReactions from "@/components/player/FloatingReactions";
+import { soundFx } from "@/lib/sound";
 import ChatPanel, { ChatMessage } from "@/components/chat/ChatPanel";
 import ParticipantList, { getInitials } from "@/components/room/ParticipantList";
 import AddSourceModal from "@/components/room/AddSourceModal";
@@ -96,6 +98,7 @@ export default function RoomPage() {
   const [isVoiceDeafened, setIsVoiceDeafened] = useState(false);
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
+  const [incomingReaction, setIncomingReaction] = useState<{ id: string; emoji: string; sender?: string } | null>(null);
   const voiceManagerRef = useRef<VoiceCallManager | null>(null);
 
   // Player adapter and sync lifecycle references
@@ -588,6 +591,10 @@ export default function RoomPage() {
       }
     }
 
+    function handleReceiveReaction(data: { id: string; emoji: string; sender?: string }) {
+      setIncomingReaction(data);
+    }
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
@@ -605,6 +612,7 @@ export default function RoomPage() {
     socket.on("voice_state_changed", handleVoiceStateChanged);
     socket.on("voice_signal", handleVoiceSignal);
     socket.on("force_mute_mic", handleForceMuteMic);
+    socket.on("receive_reaction", handleReceiveReaction);
 
     if (socket.connected) {
       handleConnect();
@@ -658,6 +666,7 @@ export default function RoomPage() {
       socket.off("voice_state_changed", handleVoiceStateChanged);
       socket.off("voice_signal", handleVoiceSignal);
       socket.off("force_mute_mic", handleForceMuteMic);
+      socket.off("receive_reaction", handleReceiveReaction);
       webrtc.destroy();
       webrtcManagerRef.current = null;
       if (voiceManagerRef.current) {
@@ -834,6 +843,45 @@ export default function RoomPage() {
       });
     }
   };
+
+  // 5. Desktop Keyboard Shortcuts (Space: Play/Pause, M: Mic Toggle, F: Fullscreen, Left/Right: Seek 5s)
+  useEffect(() => {
+    function handleKeyDownShortcuts(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const isInputActive =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.getAttribute("role") === "textbox");
+
+      // Do not intercept keystrokes while typing in chat, name prompt, or modals
+      if (isInputActive) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        handlePlayPause();
+      } else if (e.code === "KeyM") {
+        if (isInVoice) {
+          handleToggleVoiceMute();
+        }
+      } else if (e.code === "KeyF") {
+        e.preventDefault();
+        handleToggleFullscreen();
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        const currentMediaTime = playerAdapterRef.current?.getCurrentTime() ?? currentTime;
+        handleSeek(Math.max(0, currentMediaTime - 5));
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        const currentMediaTime = playerAdapterRef.current?.getCurrentTime() ?? currentTime;
+        handleSeek(Math.min(duration, currentMediaTime + 5));
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDownShortcuts);
+    return () => window.removeEventListener("keydown", handleKeyDownShortcuts);
+  }, [isPlaying, isHost, isHostOnline, isInVoice, isVoiceMuted, currentTime, duration, isCssFullscreen]);
 
   const handleAdapterReady = useCallback((adapter: PlayerAdapter) => {
     playerAdapterRef.current = adapter;
@@ -1014,6 +1062,7 @@ export default function RoomPage() {
       setIsInVoice(true);
       setIsVoiceMuted(false);
       setIsVoiceDeafened(false);
+      soundFx.playVoiceJoin();
     } catch (err) {
       console.error("[Voice] Join error:", err);
       voiceManagerRef.current?.destroy();
@@ -1031,6 +1080,7 @@ export default function RoomPage() {
       voiceManagerRef.current.leaveVoice();
       voiceManagerRef.current = null;
     }
+    soundFx.playVoiceLeave();
     setIsInVoice(false);
     setIsVoiceMuted(false);
     setIsVoiceDeafened(false);
@@ -1042,6 +1092,11 @@ export default function RoomPage() {
     const nextMuted = !isVoiceMuted;
     voiceManagerRef.current.setMuted(nextMuted);
     setIsVoiceMuted(nextMuted);
+    if (nextMuted) {
+      soundFx.playMute();
+    } else {
+      soundFx.playUnmute();
+    }
     if (isVoiceDeafened && !nextMuted) {
       setIsVoiceDeafened(false);
     }
@@ -1053,7 +1108,10 @@ export default function RoomPage() {
     voiceManagerRef.current.setDeafened(nextDeafened);
     setIsVoiceDeafened(nextDeafened);
     if (nextDeafened) {
+      soundFx.playMute();
       setIsVoiceMuted(true);
+    } else {
+      soundFx.playUnmute();
     }
   };
 
@@ -1074,6 +1132,18 @@ export default function RoomPage() {
       roomId: code,
     });
   }, [code]);
+
+  const handleSendReaction = useCallback(
+    (emoji: string) => {
+      if (!socketRef.current?.connected || !code) return;
+      socketRef.current.emit("send_reaction", {
+        roomId: code,
+        emoji,
+        sender: currentUser?.displayName || "Guest",
+      });
+    },
+    [code, currentUser?.displayName]
+  );
 
   if (isLoading) {
     return (
@@ -1487,11 +1557,16 @@ export default function RoomPage() {
           )}
 
           {/* Video Area */}
-          <div className={`w-full ${
+          <div className={`w-full relative ${
             isFullscreen || isCssFullscreen
-              ? "flex-1 flex items-center justify-center min-h-0 relative my-auto"
+              ? "flex-1 flex items-center justify-center min-h-0 my-auto"
               : ""
           }`}>
+            {/* Ambient Cinema Lighting halo */}
+            <div
+              className="absolute -inset-2 sm:-inset-4 rounded-3xl bg-gradient-to-tr from-amber-500/10 via-orange-600/10 to-amber-700/10 blur-2xl opacity-0 dark:opacity-80 transition-opacity duration-700 pointer-events-none -z-10"
+              aria-hidden="true"
+            />
           {screenSharer ? (
             <ScreenSharePlayer
               stream={screenShareStream}
@@ -1628,6 +1703,12 @@ export default function RoomPage() {
               </div>
             </div>
           )}
+
+          {/* Realtime Floating Reactions overlay */}
+          <FloatingReactions
+            onSendReaction={handleSendReaction}
+            incomingReaction={incomingReaction}
+          />
         </div>
 
         {/* Peer Buffering Indicator (design/4-host-controls-buffering.jpg) */}

@@ -1052,6 +1052,19 @@ io.on("connection", (socket: Socket) => {
       console.log(`[Moderation] Host ${callingPeer.displayName} muted all participants in room ${roomId}`);
     });
 
+    // Realtime Floating Reactions
+    socket.on("send_reaction", (data: { roomId: string; emoji: string; sender?: string }) => {
+      const { roomId, emoji, sender } = data;
+      if (!roomId || !emoji) return;
+
+      io.to(roomId).emit("receive_reaction", {
+        id: `react-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        emoji: String(emoji).slice(0, 8),
+        sender: sender ? String(sender).slice(0, 30) : undefined,
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("leave_room", (data: { roomId: string; userId?: string }) => {
       const targetRoomId = data?.roomId || currentRoomId;
       if (targetRoomId) {
