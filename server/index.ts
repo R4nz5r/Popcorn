@@ -991,6 +991,67 @@ io.on("connection", (socket: Socket) => {
       }
     );
 
+    // Host Voice Moderation Handlers
+    socket.on("host_mute_user", (data: { roomId: string; targetSocketId: string }) => {
+      const { roomId, targetSocketId } = data;
+      if (!roomId || !targetSocketId) return;
+      const room = rooms.get(roomId);
+      if (!room) return;
+
+      const callingPeer = room.peers.get(socket.id);
+      if (!callingPeer || callingPeer.userId !== room.hostId) {
+        console.warn(`[Moderation] Unauthorized host_mute_user attempt by ${socket.id}`);
+        return;
+      }
+
+      const targetVoicePeer = room.voicePeers?.get(targetSocketId);
+      if (targetVoicePeer) {
+        targetVoicePeer.isMuted = true;
+        targetVoicePeer.isSpeaking = false;
+        io.to(targetSocketId).emit("force_mute_mic", {
+          by: callingPeer.displayName || "Host",
+        });
+        io.to(roomId).emit("voice_state_changed", {
+          socketId: targetSocketId,
+          userId: targetVoicePeer.userId,
+          isMuted: true,
+          isSpeaking: false,
+        });
+        console.log(`[Moderation] Host ${callingPeer.displayName} muted user ${targetVoicePeer.displayName} (${targetSocketId})`);
+      }
+    });
+
+    socket.on("host_mute_all", (data: { roomId: string }) => {
+      const { roomId } = data;
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room || !room.voicePeers) return;
+
+      const callingPeer = room.peers.get(socket.id);
+      if (!callingPeer || callingPeer.userId !== room.hostId) {
+        console.warn(`[Moderation] Unauthorized host_mute_all attempt by ${socket.id}`);
+        return;
+      }
+
+      for (const [sId, vPeer] of room.voicePeers.entries()) {
+        if (sId !== socket.id) {
+          vPeer.isMuted = true;
+          vPeer.isSpeaking = false;
+          io.to(sId).emit("force_mute_mic", {
+            by: callingPeer.displayName || "Host",
+            isMuteAll: true,
+          });
+          io.to(roomId).emit("voice_state_changed", {
+            socketId: sId,
+            userId: vPeer.userId,
+            isMuted: true,
+            isSpeaking: false,
+          });
+        }
+      }
+      console.log(`[Moderation] Host ${callingPeer.displayName} muted all participants in room ${roomId}`);
+    });
+
     socket.on("leave_room", (data: { roomId: string; userId?: string }) => {
       const targetRoomId = data?.roomId || currentRoomId;
       if (targetRoomId) {

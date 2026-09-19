@@ -71,9 +71,17 @@ export class VoiceCallManager {
   private callbacks: VoiceCallManagerCallbacks;
 
   private localStream: MediaStream | null = null;
+  private rawLocalStream: MediaStream | null = null;
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
   private audioElements: Map<string, HTMLAudioElement> = new Map();
+
+  // Local mixer settings
+  private peerVolumes: Map<string, number> = new Map();
+  private locallyMutedPeers: Set<string> = new Set();
+  private inputGain: number = 1.0;
+  private inputGainNode: GainNode | null = null;
+  private micDestination: MediaStreamAudioDestinationNode | null = null;
 
   private isMuted: boolean = false;
   private isDeafened: boolean = false;
@@ -102,6 +110,60 @@ export class VoiceCallManager {
 
   public getIsDeafened(): boolean {
     return this.isDeafened;
+  }
+
+  public getInputGain(): number {
+    return this.inputGain;
+  }
+
+  public setInputGain(gain: number): void {
+    this.inputGain = Math.max(0, Math.min(2.0, gain));
+    if (this.inputGainNode && this.audioContext) {
+      try {
+        this.inputGainNode.gain.setValueAtTime(this.inputGain, this.audioContext.currentTime);
+      } catch {}
+    }
+  }
+
+  public setPeerVolume(socketId: string, volume: number): void {
+    const clamped = Math.max(0, Math.min(100, volume));
+    this.peerVolumes.set(socketId, clamped);
+    const audio = this.audioElements.get(socketId);
+    if (audio) {
+      audio.volume = clamped / 100;
+    }
+  }
+
+  public getPeerVolume(socketId: string): number {
+    return this.peerVolumes.get(socketId) ?? 100;
+  }
+
+  public setPeerMuted(socketId: string, muted: boolean): void {
+    if (muted) {
+      this.locallyMutedPeers.add(socketId);
+    } else {
+      this.locallyMutedPeers.delete(socketId);
+    }
+    const audio = this.audioElements.get(socketId);
+    if (audio) {
+      audio.muted = muted || this.isDeafened;
+    }
+  }
+
+  public isPeerLocallyMuted(socketId: string): boolean {
+    return this.locallyMutedPeers.has(socketId);
+  }
+
+  public getMicLevel(): number {
+    if (!this.analyser || this.isMuted) return 0;
+    const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+    this.analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
+    }
+    const avg = sum / dataArray.length;
+    return Math.min(100, Math.round((avg / 128) * 100));
   }
 
   /**
@@ -154,11 +216,12 @@ export class VoiceCallManager {
         t.enabled = true;
       });
 
-      this.localStream = stream;
-      this.callbacks.onLocalStream?.(stream);
+      this.rawLocalStream = stream;
 
-      // Start local speaking energy detector and prime AudioContext
-      this.setupSpeakingDetector(stream);
+      // Start local speaking energy detector and prime AudioContext with input gain node
+      const processedStream = this.setupSpeakingDetector(stream);
+      this.localStream = processedStream || stream;
+      this.callbacks.onLocalStream?.(this.localStream);
 
       // Tell the server we joined voice
       this.socket.emit("voice_join", { roomId: this.roomId });
@@ -195,7 +258,12 @@ export class VoiceCallManager {
    */
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
-    if (this.localStream) {
+    if (this.rawLocalStream) {
+      this.rawLocalStream.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+    }
+    if (this.localStream && this.localStream !== this.rawLocalStream) {
       this.localStream.getAudioTracks().forEach((track) => {
         track.enabled = !muted;
       });
@@ -221,9 +289,9 @@ export class VoiceCallManager {
   public setDeafened(deafened: boolean): void {
     this.isDeafened = deafened;
 
-    // Mute/unmute all remote audio elements
-    this.audioElements.forEach((audio) => {
-      audio.muted = deafened;
+    // Mute/unmute all remote audio elements respecting local per-peer mutes
+    this.audioElements.forEach((audio, socketId) => {
+      audio.muted = deafened || this.locallyMutedPeers.has(socketId);
     });
 
     // If deafened, automatically mute local microphone as well
@@ -502,12 +570,15 @@ export class VoiceCallManager {
   private playRemoteStream(socketId: string, stream: MediaStream): void {
     // 1. Standard HTMLAudioElement playback (visible in DOM layout to prevent Safari suspension)
     let audio = this.audioElements.get(socketId);
+    const isLocallyMuted = this.locallyMutedPeers.has(socketId);
+    const peerVol = this.peerVolumes.get(socketId) ?? 100;
+
     if (!audio) {
       audio = document.createElement("audio");
       audio.autoplay = true;
       audio.setAttribute("playsinline", "true");
-      audio.muted = this.isDeafened;
-      audio.volume = 1.0;
+      audio.muted = isLocallyMuted || this.isDeafened;
+      audio.volume = peerVol / 100;
       audio.style.position = "fixed";
       audio.style.pointerEvents = "none";
       audio.style.opacity = "0.01";
@@ -518,6 +589,9 @@ export class VoiceCallManager {
       audio.style.zIndex = "-9999";
       document.body.appendChild(audio);
       this.audioElements.set(socketId, audio);
+    } else {
+      audio.muted = isLocallyMuted || this.isDeafened;
+      audio.volume = peerVol / 100;
     }
 
     if (audio.srcObject !== stream) {
@@ -532,25 +606,31 @@ export class VoiceCallManager {
   }
 
   // ---------------------------------------------------------------------------
-  // Speaking Energy Detector
+  // Speaking Energy Detector & Gain Pipeline
   // ---------------------------------------------------------------------------
 
-  private setupSpeakingDetector(stream: MediaStream): void {
+  private setupSpeakingDetector(stream: MediaStream): MediaStream | null {
     try {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
+      if (!AudioCtx) return null;
 
       this.audioContext = new AudioCtx();
       if (this.audioContext.state === "suspended") {
         this.audioContext.resume().catch(() => {});
       }
 
+      this.micSource = this.audioContext.createMediaStreamSource(stream);
+
+      // 1. Input Gain node for mic volume adjustment (0% to 150%)
+      this.inputGainNode = this.audioContext.createGain();
+      this.inputGainNode.gain.value = this.inputGain;
+      this.micSource.connect(this.inputGainNode);
+
+      // 2. Analyser node for speaking detection & VU meter
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 512;
       this.analyser.smoothingTimeConstant = 0.2;
-
-      this.micSource = this.audioContext.createMediaStreamSource(stream);
-      this.micSource.connect(this.analyser);
+      this.inputGainNode.connect(this.analyser);
 
       const bufferLength = this.analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
@@ -592,8 +672,17 @@ export class VoiceCallManager {
       };
 
       this.speakingCheckInterval = setInterval(checkVolume, 100);
+
+      // 3. Audio destination node for processed WebRTC transmission stream
+      if (this.audioContext.createMediaStreamDestination) {
+        this.micDestination = this.audioContext.createMediaStreamDestination();
+        this.inputGainNode.connect(this.micDestination);
+        return this.micDestination.stream;
+      }
+      return null;
     } catch (e) {
-      console.warn("[VoiceCallManager] Could not initialize speaking detector:", e);
+      console.warn("[VoiceCallManager] Could not initialize speaking detector / gain pipeline:", e);
+      return null;
     }
   }
 
@@ -623,6 +712,20 @@ export class VoiceCallManager {
       this.silenceTimer = null;
     }
 
+    if (this.micDestination) {
+      try {
+        this.micDestination.stream.getTracks().forEach((track) => track.stop());
+      } catch {}
+      this.micDestination = null;
+    }
+
+    if (this.inputGainNode) {
+      try {
+        this.inputGainNode.disconnect();
+      } catch {}
+      this.inputGainNode = null;
+    }
+
     if (this.micSource) {
       try {
         this.micSource.disconnect();
@@ -642,6 +745,11 @@ export class VoiceCallManager {
         this.audioContext.close();
       } catch {}
       this.audioContext = null;
+    }
+
+    if (this.rawLocalStream) {
+      this.rawLocalStream.getTracks().forEach((track) => track.stop());
+      this.rawLocalStream = null;
     }
 
     if (this.localStream) {

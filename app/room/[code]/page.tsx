@@ -26,6 +26,7 @@ import ScreenSharePlayer from "@/components/player/ScreenSharePlayer";
 import { WebRTCManager } from "@/lib/webrtc/WebRTCManager";
 import { VoiceCallManager } from "@/lib/webrtc/VoiceCallManager";
 import VoiceControls from "@/components/voice/VoiceControls";
+import VoiceSettingsModal from "@/components/voice/VoiceSettingsModal";
 import ChatPanel, { ChatMessage } from "@/components/chat/ChatPanel";
 import ParticipantList, { getInitials } from "@/components/room/ParticipantList";
 import AddSourceModal from "@/components/room/AddSourceModal";
@@ -94,6 +95,7 @@ export default function RoomPage() {
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [isVoiceDeafened, setIsVoiceDeafened] = useState(false);
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
+  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const voiceManagerRef = useRef<VoiceCallManager | null>(null);
 
   // Player adapter and sync lifecycle references
@@ -565,6 +567,27 @@ export default function RoomPage() {
       }
     }
 
+    function handleForceMuteMic(data: { by?: string; isMuteAll?: boolean }) {
+      if (voiceManagerRef.current && voiceManagerRef.current.isInVoice()) {
+        voiceManagerRef.current.setMuted(true);
+        setIsVoiceMuted(true);
+
+        const notice = data?.isMuteAll
+          ? "The host muted all participants in the room."
+          : `The host (${data?.by || "Host"}) muted your microphone. You can unmute when you wish to speak.`;
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `sys-mute-${Date.now()}`,
+            sender: "System",
+            text: notice,
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    }
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
@@ -581,6 +604,7 @@ export default function RoomPage() {
     socket.on("voice_users_changed", handleVoiceUsersChanged);
     socket.on("voice_state_changed", handleVoiceStateChanged);
     socket.on("voice_signal", handleVoiceSignal);
+    socket.on("force_mute_mic", handleForceMuteMic);
 
     if (socket.connected) {
       handleConnect();
@@ -633,6 +657,7 @@ export default function RoomPage() {
       socket.off("voice_users_changed", handleVoiceUsersChanged);
       socket.off("voice_state_changed", handleVoiceStateChanged);
       socket.off("voice_signal", handleVoiceSignal);
+      socket.off("force_mute_mic", handleForceMuteMic);
       webrtc.destroy();
       webrtcManagerRef.current = null;
       if (voiceManagerRef.current) {
@@ -1032,6 +1057,24 @@ export default function RoomPage() {
     }
   };
 
+  const handleHostMuteUser = useCallback(
+    (targetSocketId: string) => {
+      if (!socketRef.current || !code) return;
+      socketRef.current.emit("host_mute_user", {
+        roomId: code,
+        targetSocketId,
+      });
+    },
+    [code]
+  );
+
+  const handleHostMuteAll = useCallback(() => {
+    if (!socketRef.current || !code) return;
+    socketRef.current.emit("host_mute_all", {
+      roomId: code,
+    });
+  }, [code]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f3efe8] dark:bg-[#121110] p-4 transition-colors">
@@ -1154,6 +1197,7 @@ export default function RoomPage() {
             onLeaveVoice={handleLeaveVoice}
             onToggleMute={handleToggleVoiceMute}
             onToggleDeafen={handleToggleVoiceDeafen}
+            onOpenSettings={() => setIsVoiceSettingsOpen(true)}
             variant="desktop"
           />
 
@@ -1332,6 +1376,10 @@ export default function RoomPage() {
                 onLeaveVoice={handleLeaveVoice}
                 onToggleMute={handleToggleVoiceMute}
                 onToggleDeafen={handleToggleVoiceDeafen}
+                onOpenSettings={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsVoiceSettingsOpen(true);
+                }}
                 variant="mobile"
               />
 
@@ -1652,10 +1700,27 @@ export default function RoomPage() {
               currentUserName={currentUser?.displayName}
               currentUserColor={currentUser?.avatarColor}
               voiceUsers={voiceUsers}
+              voiceManager={voiceManagerRef.current}
+              isHost={isHost}
+              onHostMuteUser={handleHostMuteUser}
+              onHostMuteAll={handleHostMuteAll}
+              onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
             />
           }
         />
       </main>
+
+      {/* Voice Settings & Mixer Modal */}
+      <VoiceSettingsModal
+        isOpen={isVoiceSettingsOpen}
+        onClose={() => setIsVoiceSettingsOpen(false)}
+        voiceManager={voiceManagerRef.current}
+        voiceUsers={voiceUsers}
+        currentUserId={currentUser?.userId}
+        isHost={isHost}
+        onHostMuteUser={handleHostMuteUser}
+        onHostMuteAll={handleHostMuteAll}
+      />
 
       {/* Add Source Modal (design/3-add-source-modal.jpg) */}
       <AddSourceModal

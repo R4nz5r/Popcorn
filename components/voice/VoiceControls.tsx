@@ -13,6 +13,7 @@ interface VoiceControlsProps {
   onLeaveVoice: () => void;
   onToggleMute: () => void;
   onToggleDeafen: () => void;
+  onOpenSettings?: () => void;
   variant?: "desktop" | "mobile";
   className?: string;
 }
@@ -28,6 +29,7 @@ export default function VoiceControls({
   onLeaveVoice,
   onToggleMute,
   onToggleDeafen,
+  onOpenSettings,
   variant = "desktop",
   className = "",
 }: VoiceControlsProps) {
@@ -101,13 +103,29 @@ export default function VoiceControls({
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Connected to Voice ({voiceUserCount})</span>
           </div>
-          <button
-            type="button"
-            onClick={onLeaveVoice}
-            className="text-[11px] font-semibold px-2 py-0.5 bg-red-600/90 hover:bg-red-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
-          >
-            Leave
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="text-[11px] font-semibold px-2 py-0.5 rounded-md border border-[#d6d2c9] dark:border-[#33312b] bg-white dark:bg-[#242320] text-[#1f1f1d] dark:text-[#f3efe8] hover:bg-[#ebe7de] transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                title="Voice Settings"
+              >
+                <svg className="w-3 h-3 text-[#706e68] dark:text-[#a09d95]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Mixer</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onLeaveVoice}
+              className="text-[11px] font-semibold px-2 py-0.5 bg-red-600/90 hover:bg-red-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
+            >
+              Leave
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 mt-1">
@@ -207,6 +225,21 @@ export default function VoiceControls({
           />
         </svg>
       </button>
+
+      {/* Voice Settings & Mixer */}
+      {onOpenSettings && (
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="p-1.5 rounded-lg hover:bg-white/80 dark:hover:bg-[#1a1917] text-[#686762] dark:text-[#a8a49c] transition-colors cursor-pointer"
+          title="Voice Settings (Mic volume, test, and mixer)"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      )}
 
       {/* Disconnect Voice */}
       <button
