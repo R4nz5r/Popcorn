@@ -17,11 +17,15 @@ import {
   ScreenSharer,
   ScreenShareStartedPayload,
   WebRTCSignalPayload,
+  VoicePeerUser,
+  VoiceSignalPayload,
 } from "@/lib/socket";
 import YouTubePlayer from "@/components/player/YouTubePlayer";
 import PlaybackControls from "@/components/player/PlaybackControls";
 import ScreenSharePlayer from "@/components/player/ScreenSharePlayer";
 import { WebRTCManager } from "@/lib/webrtc/WebRTCManager";
+import { VoiceCallManager } from "@/lib/webrtc/VoiceCallManager";
+import VoiceControls from "@/components/voice/VoiceControls";
 import ChatPanel, { ChatMessage } from "@/components/chat/ChatPanel";
 import ParticipantList, { getInitials } from "@/components/room/ParticipantList";
 import AddSourceModal from "@/components/room/AddSourceModal";
@@ -82,6 +86,15 @@ export default function RoomPage() {
   const [screenShareStream, setScreenShareStream] = useState<MediaStream | null>(null);
   const [isStartingScreenShare, setIsStartingScreenShare] = useState(false);
   const webrtcManagerRef = useRef<WebRTCManager | null>(null);
+
+  // Voice Party State
+  const [voiceUsers, setVoiceUsers] = useState<VoicePeerUser[]>([]);
+  const [isInVoice, setIsInVoice] = useState(false);
+  const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [isVoiceDeafened, setIsVoiceDeafened] = useState(false);
+  const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
+  const voiceManagerRef = useRef<VoiceCallManager | null>(null);
 
   // Player adapter and sync lifecycle references
   const playerAdapterRef = useRef<PlayerAdapter | null>(null);
@@ -515,6 +528,43 @@ export default function RoomPage() {
       webrtcManagerRef.current?.handleSignal(payload.fromSocketId, payload.signal);
     }
 
+    function handleVoiceUsersChanged(data: { users: VoicePeerUser[] }) {
+      const users = data.users || [];
+      setVoiceUsers(users);
+
+      if (voiceManagerRef.current && voiceManagerRef.current.isInVoice()) {
+        users.forEach((u) => {
+          if (u.socketId && u.socketId !== socket.id) {
+            voiceManagerRef.current?.addPeer(u.socketId);
+          }
+        });
+      }
+    }
+
+    function handleVoiceStateChanged(data: {
+      socketId: string;
+      userId: string;
+      isMuted: boolean;
+      isSpeaking: boolean;
+    }) {
+      setVoiceUsers((prev) =>
+        prev.map((u) =>
+          u.socketId === data.socketId || u.userId === data.userId
+            ? { ...u, isMuted: data.isMuted, isSpeaking: data.isSpeaking }
+            : u
+        )
+      );
+    }
+
+    async function handleVoiceSignal(payload: VoiceSignalPayload) {
+      if (voiceManagerRef.current && voiceManagerRef.current.isInVoice()) {
+        await voiceManagerRef.current.handleVoiceSignal(
+          payload.fromSocketId,
+          payload.signal
+        );
+      }
+    }
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleConnectError);
@@ -528,6 +578,9 @@ export default function RoomPage() {
     socket.on("screen_share_started", handleScreenShareStarted);
     socket.on("screen_share_stopped", handleScreenShareStopped);
     socket.on("webrtc_signal", handleWebRTCSignal);
+    socket.on("voice_users_changed", handleVoiceUsersChanged);
+    socket.on("voice_state_changed", handleVoiceStateChanged);
+    socket.on("voice_signal", handleVoiceSignal);
 
     if (socket.connected) {
       handleConnect();
@@ -577,8 +630,15 @@ export default function RoomPage() {
       socket.off("screen_share_started", handleScreenShareStarted);
       socket.off("screen_share_stopped", handleScreenShareStopped);
       socket.off("webrtc_signal", handleWebRTCSignal);
+      socket.off("voice_users_changed", handleVoiceUsersChanged);
+      socket.off("voice_state_changed", handleVoiceStateChanged);
+      socket.off("voice_signal", handleVoiceSignal);
       webrtc.destroy();
       webrtcManagerRef.current = null;
+      if (voiceManagerRef.current) {
+        voiceManagerRef.current.destroy();
+        voiceManagerRef.current = null;
+      }
       if (rateResetTimerRef.current) {
         clearTimeout(rateResetTimerRef.current);
       }
@@ -909,6 +969,69 @@ export default function RoomPage() {
     }
   };
 
+  // Voice Party Handlers
+  const handleJoinVoice = async () => {
+    if (!socketRef.current || isVoiceConnecting) return;
+    setIsVoiceConnecting(true);
+    try {
+      const existingSocketIds = voiceUsers.map((u) => u.socketId);
+      const vm = new VoiceCallManager(socketRef.current, code, {
+        onSpeakingChange: (speaking) => {
+          setIsLocalSpeaking(speaking);
+        },
+        onError: (err) => {
+          console.error("[Voice] Error:", err);
+          setIsVoiceConnecting(false);
+        },
+      });
+      voiceManagerRef.current = vm;
+      await vm.joinVoice(existingSocketIds);
+      setIsInVoice(true);
+      setIsVoiceMuted(false);
+      setIsVoiceDeafened(false);
+    } catch (err) {
+      console.error("[Voice] Join error:", err);
+      voiceManagerRef.current?.destroy();
+      voiceManagerRef.current = null;
+      setIsInVoice(false);
+      const msg = err instanceof Error ? err.message : "Failed to join voice.";
+      alert(msg);
+    } finally {
+      setIsVoiceConnecting(false);
+    }
+  };
+
+  const handleLeaveVoice = () => {
+    if (voiceManagerRef.current) {
+      voiceManagerRef.current.leaveVoice();
+      voiceManagerRef.current = null;
+    }
+    setIsInVoice(false);
+    setIsVoiceMuted(false);
+    setIsVoiceDeafened(false);
+    setIsLocalSpeaking(false);
+  };
+
+  const handleToggleVoiceMute = () => {
+    if (!voiceManagerRef.current) return;
+    const nextMuted = !isVoiceMuted;
+    voiceManagerRef.current.setMuted(nextMuted);
+    setIsVoiceMuted(nextMuted);
+    if (isVoiceDeafened && !nextMuted) {
+      setIsVoiceDeafened(false);
+    }
+  };
+
+  const handleToggleVoiceDeafen = () => {
+    if (!voiceManagerRef.current) return;
+    const nextDeafened = !isVoiceDeafened;
+    voiceManagerRef.current.setDeafened(nextDeafened);
+    setIsVoiceDeafened(nextDeafened);
+    if (nextDeafened) {
+      setIsVoiceMuted(true);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f3efe8] dark:bg-[#121110] p-4 transition-colors">
@@ -1018,6 +1141,21 @@ export default function RoomPage() {
         <div className="hidden md:flex items-center gap-2 sm:gap-3">
           {/* Theme Toggle */}
           <ThemeToggle size="sm" />
+
+          {/* Voice Party Controls */}
+          <VoiceControls
+            isInVoice={isInVoice}
+            isConnecting={isVoiceConnecting}
+            isMuted={isVoiceMuted}
+            isDeafened={isVoiceDeafened}
+            isSpeaking={isLocalSpeaking}
+            voiceUserCount={voiceUsers.length}
+            onJoinVoice={handleJoinVoice}
+            onLeaveVoice={handleLeaveVoice}
+            onToggleMute={handleToggleVoiceMute}
+            onToggleDeafen={handleToggleVoiceDeafen}
+            variant="desktop"
+          />
 
           {/* Share Screen Button */}
           <button
@@ -1181,6 +1319,21 @@ export default function RoomPage() {
                   </button>
                 </div>
               )}
+
+              {/* Voice Party Option in Mobile Menu */}
+              <VoiceControls
+                isInVoice={isInVoice}
+                isConnecting={isVoiceConnecting}
+                isMuted={isVoiceMuted}
+                isDeafened={isVoiceDeafened}
+                isSpeaking={isLocalSpeaking}
+                voiceUserCount={voiceUsers.length}
+                onJoinVoice={handleJoinVoice}
+                onLeaveVoice={handleLeaveVoice}
+                onToggleMute={handleToggleVoiceMute}
+                onToggleDeafen={handleToggleVoiceDeafen}
+                variant="mobile"
+              />
 
               {/* Theme Toggle Row in Mobile Menu */}
               <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#1f1f1d] dark:text-[#f3efe8]">
@@ -1498,6 +1651,7 @@ export default function RoomPage() {
               currentUserId={currentUser?.userId}
               currentUserName={currentUser?.displayName}
               currentUserColor={currentUser?.avatarColor}
+              voiceUsers={voiceUsers}
             />
           }
         />

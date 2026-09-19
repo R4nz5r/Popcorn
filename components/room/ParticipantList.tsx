@@ -18,6 +18,7 @@ interface ParticipantListProps {
   currentUserName?: string;
   currentUserColor?: string;
   className?: string;
+  voiceUsers?: Array<{ userId: string; isMuted?: boolean; isSpeaking?: boolean }>;
 }
 
 // Preset palette matching design mockups (design/2, design/4)
@@ -61,6 +62,7 @@ export default function ParticipantList({
   currentUserName = "You",
   currentUserColor,
   className = "",
+  voiceUsers = [],
 }: ParticipantListProps) {
   const userMap = new Map<string, Participant>();
 
@@ -138,16 +140,56 @@ export default function ParticipantList({
 
       {/* Avatar stack (vertical list matching design/2-watch-room.jpg) */}
       <div className="flex flex-col gap-2">
-        {displayAvatars.map((avatar) => (
-          <div
-            key={avatar.id}
-            title={avatar.name}
-            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-xs transition-transform hover:scale-105 select-none"
-            style={{ backgroundColor: avatar.bgColor, color: avatar.textColor }}
-          >
-            {avatar.initials}
-          </div>
-        ))}
+        {displayAvatars.map((avatar) => {
+          const voiceInfo = voiceUsers?.find((v) => v.userId === avatar.id);
+          const isInVoice = Boolean(voiceInfo);
+          const isMuted = Boolean(voiceInfo?.isMuted);
+          const isSpeaking = Boolean(voiceInfo?.isSpeaking);
+
+          return (
+            <div key={avatar.id} className="relative inline-block w-8 h-8">
+              <div
+                title={`${avatar.name}${
+                  isInVoice
+                    ? isMuted
+                      ? " (Voice: Muted)"
+                      : isSpeaking
+                      ? " (Voice: Speaking)"
+                      : " (In Voice)"
+                    : ""
+                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-xs transition-all hover:scale-105 select-none ${
+                  isSpeaking
+                    ? "ring-2 ring-emerald-500 ring-offset-1 ring-offset-white dark:ring-offset-[#121110] animate-pulse"
+                    : isInVoice
+                    ? "ring-1 ring-emerald-500/50"
+                    : ""
+                }`}
+                style={{ backgroundColor: avatar.bgColor, color: avatar.textColor }}
+              >
+                {avatar.initials}
+              </div>
+
+              {/* Voice status indicator badge */}
+              {isInVoice && (
+                <div
+                  className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 border-white dark:border-[#161514] shadow-2xs ${
+                    isMuted ? "bg-red-500" : isSpeaking ? "bg-emerald-500 animate-pulse" : "bg-emerald-500"
+                  }`}
+                  title={isMuted ? "Microphone muted" : "In voice party"}
+                >
+                  {isMuted ? (
+                    <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M3 3l18 18" />
+                    </svg>
+                  ) : (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

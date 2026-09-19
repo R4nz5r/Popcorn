@@ -109,7 +109,7 @@ export default function YouTubePlayer({
   onAdapterReady,
   isHost = true,
   className = "",
-  onVideoClick,
+  onVideoClick: _onVideoClick,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayerInstance | null>(null);

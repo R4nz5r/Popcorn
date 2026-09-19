@@ -42,6 +42,21 @@ export interface WebRTCSignalPayload {
   signal: RTCSessionDescriptionInit | RTCIceCandidateInit | Record<string, unknown>;
 }
 
+export interface VoicePeerUser {
+  socketId: string;
+  userId: string;
+  displayName: string;
+  avatarColor: string;
+  isMuted: boolean;
+  isSpeaking: boolean;
+}
+
+export interface VoiceSignalPayload {
+  fromSocketId: string;
+  toSocketId?: string;
+  signal: RTCSessionDescriptionInit | RTCIceCandidateInit | Record<string, unknown>;
+}
+
 export interface ChatMessagePayload {
   id: string;
   sender: string;

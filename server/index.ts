@@ -39,6 +39,16 @@ interface RoomSyncState {
     socketId: string;
     displayName: string;
   } | null;
+  voicePeers?: Map<string, VoicePeer>;
+}
+
+interface VoicePeer {
+  socketId: string;
+  userId: string;
+  displayName: string;
+  avatarColor: string;
+  isMuted: boolean;
+  isSpeaking: boolean;
 }
 
 const rooms = new Map<string, RoomSyncState>();
@@ -70,6 +80,11 @@ function broadcastParticipants(io: Server, roomId: string, room: RoomSyncState) 
     participants,
     hostId: room.hostId,
   });
+}
+
+function broadcastVoiceUsers(io: Server, roomId: string, room: RoomSyncState) {
+  const users = room.voicePeers ? Array.from(room.voicePeers.values()) : [];
+  io.to(roomId).emit("voice_users_changed", { users });
 }
 
 function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
@@ -110,6 +125,25 @@ function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
     if (room.messages.length > 100) room.messages.shift();
     io.to(roomId).emit("chat_message", stopNotice);
     io.to(roomId).emit("screen_share_stopped", {});
+  }
+
+  // 1c. If the departing peer was in the voice party, remove them and notify room
+  if (room.voicePeers && room.voicePeers.has(socket.id)) {
+    const voicePeer = room.voicePeers.get(socket.id);
+    room.voicePeers.delete(socket.id);
+    broadcastVoiceUsers(io, roomId, room);
+    if (voicePeer) {
+      const voiceLeaveNotice = {
+        id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "System",
+        text: `${voicePeer.displayName} left voice party`,
+        timestamp: new Date().toISOString(),
+      };
+      if (!room.messages) room.messages = [];
+      room.messages.push(voiceLeaveNotice);
+      if (room.messages.length > 100) room.messages.shift();
+      io.to(roomId).emit("chat_message", voiceLeaveNotice);
+    }
   }
 
   // 2. Immediately broadcast updated participants to remaining peers in the room
@@ -356,6 +390,13 @@ io.on("connection", (socket: Socket) => {
       if (room.screenSharer) {
         socket.emit("screen_share_started", {
           sharer: room.screenSharer,
+        });
+      }
+
+      // If voice party users exist, inform the new joiner
+      if (room.voicePeers && room.voicePeers.size > 0) {
+        socket.emit("voice_users_changed", {
+          users: Array.from(room.voicePeers.values()),
         });
       }
 
@@ -727,6 +768,12 @@ io.on("connection", (socket: Socket) => {
 
       peer.displayName = newName;
 
+      if (room.voicePeers && room.voicePeers.has(socket.id)) {
+        const vp = room.voicePeers.get(socket.id);
+        if (vp) vp.displayName = newName;
+        broadcastVoiceUsers(io, roomId, room);
+      }
+
       const renameNotice = {
         id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         sender: "System",
@@ -833,6 +880,113 @@ io.on("connection", (socket: Socket) => {
         io.to(toSocketId).emit("webrtc_signal", {
           fromSocketId: socket.id,
           signal,
+        });
+      }
+    );
+
+    // Voice Party Handlers
+    socket.on("voice_join", (data: { roomId: string }) => {
+      const { roomId } = data;
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const peer = room.peers.get(socket.id);
+      if (!peer) return;
+
+      if (!room.voicePeers) room.voicePeers = new Map();
+      room.voicePeers.set(socket.id, {
+        socketId: socket.id,
+        userId: peer.userId,
+        displayName: peer.displayName,
+        avatarColor: peer.avatarColor,
+        isMuted: false,
+        isSpeaking: false,
+      });
+
+      const voiceNotice = {
+        id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "System",
+        text: `${peer.displayName} joined voice party`,
+        timestamp: new Date().toISOString(),
+      };
+      if (!room.messages) room.messages = [];
+      room.messages.push(voiceNotice);
+      if (room.messages.length > 100) room.messages.shift();
+      io.to(roomId).emit("chat_message", voiceNotice);
+
+      broadcastVoiceUsers(io, roomId, room);
+      console.log(`[Voice Join] ${peer.displayName} (${socket.id}) in ${roomId}`);
+    });
+
+    socket.on("voice_leave", (data: { roomId: string }) => {
+      const { roomId } = data;
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room || !room.voicePeers) return;
+
+      const voicePeer = room.voicePeers.get(socket.id);
+      if (!voicePeer) return;
+
+      room.voicePeers.delete(socket.id);
+
+      const voiceNotice = {
+        id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sender: "System",
+        text: `${voicePeer.displayName} left voice party`,
+        timestamp: new Date().toISOString(),
+      };
+      if (!room.messages) room.messages = [];
+      room.messages.push(voiceNotice);
+      if (room.messages.length > 100) room.messages.shift();
+      io.to(roomId).emit("chat_message", voiceNotice);
+
+      broadcastVoiceUsers(io, roomId, room);
+      console.log(`[Voice Leave] ${voicePeer.displayName} (${socket.id}) in ${roomId}`);
+    });
+
+    socket.on(
+      "voice_signal",
+      (data: {
+        toSocketId: string;
+        signal: unknown;
+      }) => {
+        const { toSocketId, signal } = data;
+        if (!toSocketId || !signal) return;
+
+        io.to(toSocketId).emit("voice_signal", {
+          fromSocketId: socket.id,
+          signal,
+        });
+      }
+    );
+
+    socket.on(
+      "voice_state_update",
+      (data: {
+        roomId: string;
+        isMuted?: boolean;
+        isSpeaking?: boolean;
+      }) => {
+        const { roomId, isMuted, isSpeaking } = data;
+        if (!roomId) return;
+        const room = rooms.get(roomId);
+        if (!room || !room.voicePeers) return;
+
+        const voicePeer = room.voicePeers.get(socket.id);
+        if (!voicePeer) return;
+
+        if (typeof isMuted === "boolean") {
+          voicePeer.isMuted = isMuted;
+        }
+        if (typeof isSpeaking === "boolean") {
+          voicePeer.isSpeaking = isSpeaking;
+        }
+
+        io.to(roomId).emit("voice_state_changed", {
+          socketId: socket.id,
+          userId: voicePeer.userId,
+          isMuted: voicePeer.isMuted,
+          isSpeaking: voicePeer.isSpeaking,
         });
       }
     );
