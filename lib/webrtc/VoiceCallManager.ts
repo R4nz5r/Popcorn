@@ -77,6 +77,12 @@ export class VoiceCallManager {
     }
 
     try {
+      // Pre-unlock audio on user gesture for iOS Safari
+      try {
+        const dummyAudio = new Audio();
+        dummyAudio.play().catch(() => {});
+      } catch {}
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -95,10 +101,10 @@ export class VoiceCallManager {
       // Tell the server we joined voice
       this.socket.emit("voice_join", { roomId: this.roomId });
 
-      // Initiate WebRTC offer to each existing voice peer
+      // Connect to each existing peer deterministically
       const targetPeers = existingVoiceSocketIds.filter((id) => id !== this.socket.id);
       for (const targetSocketId of targetPeers) {
-        await this.initiateOffer(targetSocketId);
+        await this.connectToPeer(targetSocketId);
       }
 
       return stream;
@@ -169,20 +175,52 @@ export class VoiceCallManager {
    */
   public async handleVoiceSignal(
     fromSocketId: string,
-    signal: RTCSessionDescriptionInit | RTCIceCandidateInit | Record<string, unknown>
+    signal: unknown
   ): Promise<void> {
-    if (!this.localStream) return;
+    if (!this.localStream || !signal) return;
 
-    if ("type" in signal) {
-      const sdp = signal as RTCSessionDescriptionInit;
+    const sig = signal as Record<string, any>;
+
+    // 1. Process SDP Offer / Answer
+    const sdp = (sig.sdp || (sig.type === "offer" || sig.type === "answer" ? sig : null)) as RTCSessionDescriptionInit | null;
+    if (sdp && sdp.type) {
       if (sdp.type === "offer") {
         await this.handleOffer(fromSocketId, sdp);
       } else if (sdp.type === "answer") {
         await this.handleAnswer(fromSocketId, sdp);
       }
-    } else if ("candidate" in signal) {
-      const candidateInit = signal as RTCIceCandidateInit;
-      await this.handleCandidate(fromSocketId, candidateInit);
+      return;
+    }
+
+    // 2. Process ICE Candidate
+    const rawCandidate = sig.candidate || (sig.type === "candidate" ? sig : null);
+    if (rawCandidate) {
+      const candidateInit: RTCIceCandidateInit =
+        typeof rawCandidate === "object" && "candidate" in rawCandidate
+          ? (rawCandidate as RTCIceCandidateInit)
+          : (sig as RTCIceCandidateInit);
+
+      if (candidateInit && candidateInit.candidate !== undefined) {
+        await this.handleCandidate(fromSocketId, candidateInit);
+      }
+    }
+  }
+
+  /**
+   * Connect to a peer deterministically to prevent WebRTC glare / simultaneous offer collisions.
+   * Between peer A and peer B, only the peer with the lexicographically smaller socket ID creates the offer.
+   */
+  public async connectToPeer(targetSocketId: string): Promise<void> {
+    if (!this.localStream || targetSocketId === this.socket.id) return;
+    if (this.peerConnections.has(targetSocketId)) return;
+
+    const myId = this.socket.id || "";
+    const isOfferer = myId < targetSocketId;
+    if (isOfferer) {
+      await this.initiateOffer(targetSocketId);
+    } else {
+      // Pre-create RTCPeerConnection so it's ready when the offer arrives
+      this.createPeerConnection(targetSocketId);
     }
   }
 
@@ -190,11 +228,7 @@ export class VoiceCallManager {
    * Called when a new peer joins voice while we are already in voice
    */
   public async addPeer(targetSocketId: string): Promise<void> {
-    if (!this.localStream || targetSocketId === this.socket.id) return;
-    if (this.peerConnections.has(targetSocketId)) return;
-
-    // As an existing member, initiate connection with the new member
-    await this.initiateOffer(targetSocketId);
+    await this.connectToPeer(targetSocketId);
   }
 
   /**
@@ -229,6 +263,7 @@ export class VoiceCallManager {
     // Add local mic tracks
     if (this.localStream) {
       this.localStream.getAudioTracks().forEach((track) => {
+        track.enabled = !this.isMuted;
         pc.addTrack(track, this.localStream!);
       });
     }
@@ -238,19 +273,24 @@ export class VoiceCallManager {
       if (event.candidate && this.socket.connected) {
         this.socket.emit("voice_signal", {
           toSocketId: targetSocketId,
-          signal: event.candidate.toJSON(),
+          signal: {
+            type: "candidate",
+            candidate: event.candidate.toJSON(),
+          },
         });
       }
     };
 
     // Remote audio track received
     pc.ontrack = (event) => {
+      console.log(`[VoiceCallManager] Track received from ${targetSocketId}`);
       const remoteStream = event.streams[0] || new MediaStream([event.track]);
       this.playRemoteStream(targetSocketId, remoteStream);
       this.callbacks.onRemoteStream?.(targetSocketId, remoteStream);
     };
 
     pc.onconnectionstatechange = () => {
+      console.log(`[VoiceCallManager] Connection to ${targetSocketId} state: ${pc.connectionState}`);
       if (pc.connectionState === "failed" || pc.connectionState === "closed") {
         this.removePeer(targetSocketId);
       }
@@ -261,7 +301,7 @@ export class VoiceCallManager {
 
   private async initiateOffer(targetSocketId: string): Promise<void> {
     try {
-      const pc = this.createPeerConnection(targetSocketId);
+      const pc = this.peerConnections.get(targetSocketId) || this.createPeerConnection(targetSocketId);
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false,
@@ -270,7 +310,10 @@ export class VoiceCallManager {
 
       this.socket.emit("voice_signal", {
         toSocketId: targetSocketId,
-        signal: pc.localDescription?.toJSON(),
+        signal: {
+          type: "offer",
+          sdp: offer,
+        },
       });
     } catch (err) {
       console.error(`[VoiceCallManager] Failed to create offer to ${targetSocketId}:`, err);
@@ -282,6 +325,13 @@ export class VoiceCallManager {
       let pc = this.peerConnections.get(fromSocketId);
       if (!pc || pc.signalingState === "closed") {
         pc = this.createPeerConnection(fromSocketId);
+      }
+
+      // Handle glare: if we also made an offer, rollback our local offer to accept the incoming offer
+      if (pc.signalingState !== "stable") {
+        try {
+          await pc.setLocalDescription({ type: "rollback" });
+        } catch {}
       }
 
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -298,7 +348,10 @@ export class VoiceCallManager {
 
       this.socket.emit("voice_signal", {
         toSocketId: fromSocketId,
-        signal: pc.localDescription?.toJSON(),
+        signal: {
+          type: "answer",
+          sdp: answer,
+        },
       });
     } catch (err) {
       console.error(`[VoiceCallManager] Failed to handle offer from ${fromSocketId}:`, err);
@@ -344,15 +397,21 @@ export class VoiceCallManager {
     if (!audio) {
       audio = document.createElement("audio");
       audio.autoplay = true;
+      audio.setAttribute("playsinline", "true");
       audio.muted = this.isDeafened;
+      audio.style.display = "none";
+      // Crucial for iOS Safari & WebKit: detached audio elements are muted by Safari policy
+      document.body.appendChild(audio);
       this.audioElements.set(socketId, audio);
     }
 
     audio.srcObject = stream;
-    audio.play().catch((err) => {
-      // Autoplay policy fallback: user interaction will trigger playback
-      console.warn(`[VoiceCallManager] Autoplay prevented for peer ${socketId}:`, err);
-    });
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn(`[VoiceCallManager] Autoplay prevented for peer ${socketId}:`, err);
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
