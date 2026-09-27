@@ -1402,7 +1402,7 @@ export default function RoomPage() {
             onClick={() => setIsModalOpen(true)}
             className="text-xs font-semibold px-3 py-1.5 bg-[#262624] hover:bg-black dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] text-white rounded-lg transition-colors cursor-pointer shadow-xs"
           >
-            + Add video
+            {activeVideo?.videoId ? "Change video" : "+ Add video"}
           </button>
 
           {currentUser && (
@@ -1438,13 +1438,13 @@ export default function RoomPage() {
 
         {/* Mobile Navigation Actions (< md:) */}
         <div className="flex md:hidden items-center gap-2 relative" ref={mobileMenuRef}>
-          {/* Primary Action: + Add Video */}
+          {/* Primary Action: + Add Video / Change Video */}
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
             className="text-xs font-semibold px-2.5 py-1.5 bg-[#262624] hover:bg-black dark:bg-[#f5f2eb] dark:hover:bg-white dark:text-[#141312] text-white rounded-lg transition-colors cursor-pointer shrink-0 shadow-2xs"
           >
-            + Add video
+            {activeVideo?.videoId ? "Change video" : "+ Add video"}
           </button>
 
           {/* Mobile Kebab / Menu Trigger */}
@@ -1902,6 +1902,7 @@ export default function RoomPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelectSource={handleSelectSource}
+        hasActiveVideo={Boolean(activeVideo?.videoId)}
       />
 
       {/* User Name Modal */}
