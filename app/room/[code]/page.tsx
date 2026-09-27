@@ -33,6 +33,7 @@ import ChatPanel, { ChatMessage, TypingUser } from "@/components/chat/ChatPanel"
 import ParticipantList, { getInitials } from "@/components/room/ParticipantList";
 import AddSourceModal from "@/components/room/AddSourceModal";
 import UserNameModal from "@/components/room/UserNameModal";
+import FeedbackModal from "@/components/feedback/FeedbackModal";
 import { sanitizeRoomCode } from "@/lib/code-generator";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 
@@ -65,6 +66,7 @@ export default function RoomPage() {
   const [volume, setVolume] = useState(100);
   const [isMuted, setIsMuted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [isInitialNamePrompt, setIsInitialNamePrompt] = useState(false);
 
@@ -1342,6 +1344,19 @@ export default function RoomPage() {
           {/* Theme Toggle */}
           <ThemeToggle size="sm" />
 
+          {/* Feedback & Bug Report Button */}
+          <button
+            type="button"
+            onClick={() => setIsFeedbackModalOpen(true)}
+            className="p-1.5 rounded-lg border border-[#e5e2db] dark:border-[#33312b] bg-white dark:bg-[#242320] hover:bg-[#faf8f5] dark:hover:bg-[#2c2b27] text-[#6b6b66] hover:text-[#1f1f1d] dark:text-[#a8a49c] dark:hover:text-[#f3efe8] transition-colors cursor-pointer"
+            title="Report a bug or give feedback"
+            aria-label="Report a bug or give feedback"
+          >
+            <span className="text-xs select-none" role="img" aria-hidden="true">
+              🐞
+            </span>
+          </button>
+
           {/* Voice Party Controls */}
           <VoiceControls
             isInVoice={isInVoice}
@@ -1545,6 +1560,23 @@ export default function RoomPage() {
                 <span>Appearance</span>
                 <ThemeToggle size="sm" />
               </div>
+
+              {/* Feedback / Bug Report in Mobile Menu */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsFeedbackModalOpen(true);
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#f5f2eb] dark:hover:bg-[#242320] text-[#1f1f1d] dark:text-[#f3efe8] transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm select-none" role="img" aria-hidden="true">
+                    🐞
+                  </span>
+                  <span>Report Bug / Feedback</span>
+                </div>
+              </button>
 
               {/* Share Screen Option */}
               <button
@@ -1903,6 +1935,14 @@ export default function RoomPage() {
         onClose={() => setIsModalOpen(false)}
         onSelectSource={handleSelectSource}
         hasActiveVideo={Boolean(activeVideo?.videoId)}
+      />
+
+      {/* Feedback & Bug Report Modal */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        roomCode={code}
+        videoId={activeVideo?.videoId}
       />
 
       {/* User Name Modal */}

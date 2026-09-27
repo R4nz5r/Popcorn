@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getOrCreateAnonymousUser, updateUserName } from "@/lib/identity";
 import { sanitizeRoomCode } from "@/lib/code-generator";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import FeedbackModal from "@/components/feedback/FeedbackModal";
 
 export default function LandingPage() {
   const [userName, setUserName] = useState(() => {
@@ -16,6 +17,7 @@ export default function LandingPage() {
   const [roomCode, setRoomCode] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleCreateRoom = async () => {
@@ -93,8 +95,19 @@ export default function LandingPage() {
 
   return (
     <main className="relative min-h-screen w-full flex items-center justify-center bg-[#f3efe8] dark:bg-[#121110] p-4 sm:p-6 transition-colors duration-200">
-      {/* Theme Toggle in top right */}
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+      {/* Top right actions: Feedback & Theme Toggle */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setIsFeedbackModalOpen(true)}
+          className="p-2 sm:p-2.5 rounded-xl border border-[#d6d2c9] dark:border-[#33312b] bg-white dark:bg-[#1c1b18] hover:bg-[#faf8f5] dark:hover:bg-[#2c2b27] text-[#6b6b66] hover:text-[#1f1f1d] dark:text-[#a8a49c] dark:hover:text-[#f3efe8] transition-colors cursor-pointer shadow-xs flex items-center justify-center"
+          title="Report a bug or give feedback"
+          aria-label="Report a bug or give feedback"
+        >
+          <span className="text-sm select-none" role="img" aria-hidden="true">
+            🐞
+          </span>
+        </button>
         <ThemeToggle />
       </div>
 
@@ -223,6 +236,12 @@ export default function LandingPage() {
           </div>
         )}
       </div>
+
+      {/* Feedback & Bug Report Modal */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+      />
     </main>
   );
 }
