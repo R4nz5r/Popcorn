@@ -23,8 +23,41 @@ export default function ScreenSharePlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [needsUserInteractionToUnmute, setNeedsUserInteractionToUnmute] = useState(false);
   const [isMobileVolumeOpen, setIsMobileVolumeOpen] = useState(false);
+  const [loadedStreamId, setLoadedStreamId] = useState<string | null>(null);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   const effectiveMuted = isPresenter || isMuted;
+  const isVideoLoaded = isPresenter || (Boolean(stream) && loadedStreamId === stream?.id);
+
+  // Video element lifecycle and playback listeners
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleLoadedData = () => {
+      setLoadedStreamId(stream?.id || "loaded");
+      setIsBuffering(false);
+    };
+
+    const handlePlaying = () => {
+      setLoadedStreamId(stream?.id || "loaded");
+      setIsBuffering(false);
+    };
+
+    const handleWaiting = () => {
+      setIsBuffering(true);
+    };
+
+    video.addEventListener("loadeddata", handleLoadedData);
+    video.addEventListener("playing", handlePlaying);
+    video.addEventListener("waiting", handleWaiting);
+
+    return () => {
+      video.removeEventListener("loadeddata", handleLoadedData);
+      video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("waiting", handleWaiting);
+    };
+  }, [stream]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -38,7 +71,7 @@ export default function ScreenSharePlayer({
       .play()
       .catch((err) => {
         if (err.name === "NotAllowedError") {
-          // Autoplay policy prevented audio, mute and retry
+          // Autoplay policy prevented unmuted audio, mute and retry
           video.muted = true;
           setNeedsUserInteractionToUnmute(true);
           video.play().catch(() => {});
@@ -141,6 +174,23 @@ export default function ScreenSharePlayer({
         playsInline
         className="w-full h-full object-contain"
       />
+
+      {/* Connecting / Loading Overlay for Viewers */}
+      {!isPresenter && !isVideoLoaded && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-xs gap-3 z-10">
+          <div className="w-9 h-9 border-3 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+          <p className="text-xs text-[#a8a49c] font-medium tracking-wide">
+            Connecting to {sharerName}&apos;s screen...
+          </p>
+        </div>
+      )}
+
+      {/* Subtle Buffering Spinner for Viewers */}
+      {!isPresenter && isVideoLoaded && isBuffering && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
 
       {/* Top Banner: Sharer Info */}
       <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-white z-10">

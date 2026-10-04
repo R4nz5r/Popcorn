@@ -1,26 +1,5 @@
 import { Socket } from "socket.io-client";
-
-const RTC_CONFIGURATION: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    // Free public TURN servers from Open Relay (Metered) to pierce Carrier-Grade NAT / mobile cellular / firewalls
-    {
-      urls: [
-        "stun:openrelay.metered.ca:80",
-        "turn:openrelay.metered.ca:80",
-        "turn:openrelay.metered.ca:443",
-        "turn:openrelay.metered.ca:443?transport=tcp",
-      ],
-      username: "openrelay",
-      credential: "openrelay",
-    },
-  ],
-  iceCandidatePoolSize: 10,
-};
+import { getRTCConfiguration } from "@/lib/webrtc/iceConfig";
 
 function tuneOpusSdp(sdp: string): string {
   // Find Opus payload type (usually 111)
@@ -387,7 +366,7 @@ export class VoiceCallManager {
   // ---------------------------------------------------------------------------
 
   private createPeerConnection(targetSocketId: string): RTCPeerConnection {
-    const pc = new RTCPeerConnection(RTC_CONFIGURATION);
+    const pc = new RTCPeerConnection(getRTCConfiguration());
     this.peerConnections.set(targetSocketId, pc);
 
     // Add local mic tracks
