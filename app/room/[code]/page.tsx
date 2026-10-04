@@ -34,6 +34,7 @@ import ParticipantList, { getInitials } from "@/components/room/ParticipantList"
 import AddSourceModal from "@/components/room/AddSourceModal";
 import UserNameModal from "@/components/room/UserNameModal";
 import FeedbackModal from "@/components/feedback/FeedbackModal";
+import ScreenShareNoticeModal from "@/components/room/ScreenShareNoticeModal";
 import { sanitizeRoomCode } from "@/lib/code-generator";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 
@@ -69,6 +70,7 @@ export default function RoomPage() {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [isInitialNamePrompt, setIsInitialNamePrompt] = useState(false);
+  const [isScreenShareNoticeOpen, setIsScreenShareNoticeOpen] = useState(false);
 
   // Realtime Connection & Sync State
   const [syncStatus, setSyncStatus] = useState<"synced" | "syncing" | "disconnected" | "host-left">("syncing");
@@ -1068,6 +1070,12 @@ export default function RoomPage() {
       return;
     }
 
+    // Check if browser/device supports screen sharing
+    if (typeof window !== "undefined" && !navigator.mediaDevices?.getDisplayMedia) {
+      setIsScreenShareNoticeOpen(true);
+      return;
+    }
+
     // Start sharing
     setIsStartingScreenShare(true);
     try {
@@ -1094,6 +1102,9 @@ export default function RoomPage() {
       }
     } catch (err) {
       console.error("Failed to start screen share:", err);
+      if (err instanceof Error && (err.name === "NotSupportedError" || err.message.includes("not supported"))) {
+        setIsScreenShareNoticeOpen(true);
+      }
     } finally {
       setIsStartingScreenShare(false);
     }
@@ -1969,6 +1980,13 @@ export default function RoomPage() {
             setIsNameModalOpen(false);
           }
         }}
+      />
+
+      {/* Mobile / Unsupported Screen Share Notice Modal */}
+      <ScreenShareNoticeModal
+        isOpen={isScreenShareNoticeOpen}
+        onClose={() => setIsScreenShareNoticeOpen(false)}
+        onAddVideo={() => setIsModalOpen(true)}
       />
     </div>
   );
