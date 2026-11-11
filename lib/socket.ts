@@ -74,27 +74,47 @@ export interface RoomParticipantsPayload {
 }
 
 let socketInstance: Socket | null = null;
+let lastWakeTimestamp = 0;
+
+export function getSocketUrl(): string {
+  let socketUrl =
+    process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
+
+  // If running in browser and accessing via LAN IP or non-localhost host, adapt localhost URL
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (
+      hostname &&
+      hostname !== "localhost" &&
+      hostname !== "127.0.0.1" &&
+      (socketUrl.includes("localhost") || socketUrl.includes("127.0.0.1"))
+    ) {
+      const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+      socketUrl = `${protocol}//${hostname}:3001`;
+    }
+  }
+
+  return socketUrl.replace(/\/+$/, "");
+}
+
+/**
+ * Ping the realtime server's /health endpoint to wake sleeping free-tier instances (e.g. Render).
+ */
+export function wakeRealtimeServer(): void {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastWakeTimestamp < 15000) return;
+  lastWakeTimestamp = now;
+
+  const url = `${getSocketUrl()}/health`;
+  fetch(url, { method: "GET", cache: "no-store" }).catch(() => {
+    // Ignore transient wake-up network errors while the server boots
+  });
+}
 
 export function getSocket(): Socket {
   if (!socketInstance) {
-    let socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-
-    // If running in browser and accessing via LAN IP or non-localhost host, adapt localhost URL
-    if (typeof window !== "undefined") {
-      const hostname = window.location.hostname;
-      if (
-        hostname &&
-        hostname !== "localhost" &&
-        hostname !== "127.0.0.1" &&
-        (socketUrl.includes("localhost") || socketUrl.includes("127.0.0.1"))
-      ) {
-        const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-        socketUrl = `${protocol}//${hostname}:3001`;
-      }
-    }
-
-    socketInstance = io(socketUrl, {
+    socketInstance = io(getSocketUrl(), {
       transports: ["websocket", "polling"],
       autoConnect: false,
       reconnectionAttempts: Infinity,

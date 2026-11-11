@@ -7,6 +7,7 @@ import { getOrCreateAnonymousUser, updateUserName, AnonymousUser } from "@/lib/i
 import { PlayerAdapter, ActiveVideoSource } from "@/lib/player/types";
 import {
   getSocket,
+  wakeRealtimeServer,
   SyncStatePayload,
   CorrectionPayload,
   ChatMessagePayload,
@@ -92,7 +93,20 @@ export default function RoomPage() {
   const [screenSharer, setScreenSharer] = useState<ScreenSharer | null>(null);
   const [screenShareStream, setScreenShareStream] = useState<MediaStream | null>(null);
   const [isStartingScreenShare, setIsStartingScreenShare] = useState(false);
+  const [screenShareNotice, setScreenShareNotice] = useState<string | null>(null);
+  const screenShareNoticeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const webrtcManagerRef = useRef<WebRTCManager | null>(null);
+
+  const showScreenShareNotice = useCallback((message: string) => {
+    setScreenShareNotice(message);
+    if (screenShareNoticeTimerRef.current) {
+      clearTimeout(screenShareNoticeTimerRef.current);
+    }
+    screenShareNoticeTimerRef.current = setTimeout(() => {
+      setScreenShareNotice(null);
+      screenShareNoticeTimerRef.current = null;
+    }, 5000);
+  }, []);
 
   // Voice Party State
   const [voiceUsers, setVoiceUsers] = useState<VoicePeerUser[]>([]);
@@ -280,6 +294,7 @@ export default function RoomPage() {
 
     function handleConnect() {
       setSyncStatus("synced");
+      setScreenShareNotice(null);
       const currentMediaTime = playerAdapterRef.current?.getCurrentTime() ?? currentTime;
       socket.emit("join_room", {
         roomId: code,
@@ -300,6 +315,7 @@ export default function RoomPage() {
 
     function handleConnectError() {
       setSyncStatus("disconnected");
+      wakeRealtimeServer();
     }
 
     function handleSyncState(state: SyncStatePayload) {
@@ -674,6 +690,7 @@ export default function RoomPage() {
     if (socket.connected) {
       handleConnect();
     } else {
+      wakeRealtimeServer();
       socket.connect();
     }
 
@@ -736,6 +753,9 @@ export default function RoomPage() {
       }
       if (rateResetTimerRef.current) {
         clearTimeout(rateResetTimerRef.current);
+      }
+      if (screenShareNoticeTimerRef.current) {
+        clearTimeout(screenShareNoticeTimerRef.current);
       }
     };
   }, [currentUser?.userId, code]);
@@ -1093,9 +1113,11 @@ export default function RoomPage() {
       return;
     }
 
-    // If socket is disconnected, try reconnecting
+    // If socket is disconnected, try waking/reconnecting and show a clear notice
     if (!socketRef.current?.connected) {
+      wakeRealtimeServer();
       socketRef.current?.connect();
+      showScreenShareNotice("Connecting to the realtime server — please try again in a few seconds.");
       return;
     }
 
@@ -1108,6 +1130,7 @@ export default function RoomPage() {
 
       const stream = await webrtcManagerRef.current?.startScreenShare(otherPeerSocketIds);
       if (stream) {
+        setScreenShareNotice(null);
         setScreenSharer({
           userId: currentUser.userId,
           socketId: socketRef.current.id || "",
@@ -1127,6 +1150,12 @@ export default function RoomPage() {
       console.error("Failed to start screen share:", err);
       if (err instanceof Error && (err.name === "NotSupportedError" || err.message.includes("not supported"))) {
         setIsScreenShareNoticeOpen(true);
+      } else {
+        const message =
+          err instanceof Error && err.message
+            ? err.message
+            : "Could not start screen sharing. Please check your browser permissions.";
+        showScreenShareNotice(message);
       }
     } finally {
       setIsStartingScreenShare(false);
@@ -1672,6 +1701,30 @@ export default function RoomPage() {
 
       {/* Main Watch Room Container */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 flex flex-col gap-4">
+        {screenShareNotice && (
+          <div
+            role="status"
+            className="w-full rounded-2xl border border-amber-300/70 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-950/50 px-4 py-3 flex items-center justify-between gap-3 text-xs sm:text-sm text-amber-950 dark:text-amber-200 shadow-xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <svg className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{screenShareNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScreenShareNotice(null)}
+              className="p-1 rounded-lg hover:bg-amber-200/60 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 transition-colors cursor-pointer"
+              aria-label="Dismiss notice"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Video & Controls Area */}
         <div
           ref={videoContainerRef}

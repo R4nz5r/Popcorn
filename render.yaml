@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: popcorn-realtime
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm run server:start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGIN
+        sync: false
+

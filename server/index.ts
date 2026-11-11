@@ -241,26 +241,55 @@ function handlePeerLeave(io: Server, socket: Socket, roomId: string) {
   }
 }
 
+const rawAllowedOrigins = process.env.ALLOWED_ORIGIN || process.env.ALLOWED_ORIGINS;
+const allowedOriginList = rawAllowedOrigins
+  ? rawAllowedOrigins
+      .split(",")
+      .map((o) => o.trim().replace(/\/+$/, "").toLowerCase())
+      .filter(Boolean)
+  : null;
+
+function isOriginAllowed(requestOrigin: string | undefined): boolean {
+  if (!allowedOriginList || !requestOrigin) return true;
+  const normalizedRequest = requestOrigin.trim().replace(/\/+$/, "").toLowerCase();
+  return allowedOriginList.includes("*") || allowedOriginList.includes(normalizedRequest);
+}
+
 const server = http.createServer((req, res) => {
-  if (req.url === "/" || req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
+  const origin = req.headers.origin;
+  const allowOriginHeader = origin && isOriginAllowed(origin) ? origin : (!allowedOriginList ? "*" : "");
+  const corsHeaders: Record<string, string> = {};
+  if (allowOriginHeader) {
+    corsHeaders["Access-Control-Allow-Origin"] = allowOriginHeader;
+    corsHeaders["Access-Control-Allow-Methods"] = "GET, OPTIONS";
+    corsHeaders["Access-Control-Allow-Headers"] = "Content-Type";
+    if (allowOriginHeader !== "*") {
+      corsHeaders["Vary"] = "Origin";
+    }
+  }
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, corsHeaders);
+    res.end();
+    return;
+  }
+
+  const pathname = (req.url || "/").split("?")[0];
+  if (pathname === "/" || pathname === "/health") {
+    res.writeHead(200, {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    });
     res.end(JSON.stringify({ status: "ok", activeRooms: rooms.size }));
     return;
   }
-  res.writeHead(404);
+  res.writeHead(404, corsHeaders);
   res.end();
 });
 
-const rawAllowedOrigins = process.env.ALLOWED_ORIGIN || process.env.ALLOWED_ORIGINS;
-const corsOrigin = rawAllowedOrigins
+const corsOrigin = allowedOriginList
   ? (requestOrigin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!requestOrigin) return callback(null, true);
-      const normalizedRequest = requestOrigin.trim().replace(/\/+$/, "").toLowerCase();
-      const allowedList = rawAllowedOrigins
-        .split(",")
-        .map((o) => o.trim().replace(/\/+$/, "").toLowerCase());
-
-      if (allowedList.includes("*") || allowedList.includes(normalizedRequest)) {
+      if (isOriginAllowed(requestOrigin)) {
         return callback(null, true);
       }
       return callback(new Error(`CORS blocked for origin: ${requestOrigin}`), false);

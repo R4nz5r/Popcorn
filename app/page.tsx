@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getOrCreateAnonymousUser, updateUserName } from "@/lib/identity";
 import { sanitizeRoomCode } from "@/lib/code-generator";
+import { wakeRealtimeServer } from "@/lib/socket";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import FeedbackModal from "@/components/feedback/FeedbackModal";
 
 export default function LandingPage() {
+  useEffect(() => {
+    wakeRealtimeServer();
+  }, []);
   const [userName, setUserName] = useState(() => {
     if (typeof window !== "undefined") {
       const user = getOrCreateAnonymousUser();
