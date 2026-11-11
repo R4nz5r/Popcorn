@@ -39,11 +39,8 @@ export default function VoiceSettingsModal({
   useEffect(() => {
     if (!isOpen || !voiceManager) return;
 
-    // Load initial input gain
+    // Load initial values asynchronously to prevent cascading renders
     const currentGain = Math.round(voiceManager.getInputGain() * 100);
-    setInputGainState(currentGain);
-
-    // Load initial peer volumes & local mute states
     const initialVols: Record<string, number> = {};
     const initialMuted: Record<string, boolean> = {};
 
@@ -52,8 +49,11 @@ export default function VoiceSettingsModal({
       initialMuted[peer.socketId] = voiceManager.isPeerLocallyMuted(peer.socketId);
     });
 
-    setPeerVolumes(initialVols);
-    setPeerMuted(initialMuted);
+    queueMicrotask(() => {
+      setInputGainState(currentGain);
+      setPeerVolumes(initialVols);
+      setPeerMuted(initialMuted);
+    });
 
     // Live VU meter update loop
     const updateMeter = () => {

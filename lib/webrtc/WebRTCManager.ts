@@ -9,6 +9,19 @@ export interface WebRTCManagerCallbacks {
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 }
 
+/**
+ * Detect whether the current client is a mobile device, tablet, or browser lacking getDisplayMedia screen capture.
+ */
+export function isMobileOrUnsupportedDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!navigator.mediaDevices?.getDisplayMedia) return true;
+
+  const ua = navigator.userAgent || "";
+  // Check for standard mobile user agents and iPads running iPadOS (which identify as Macintosh with multi-touch)
+  const isTouchMac = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || isTouchMac;
+}
+
 export class WebRTCManager {
   private socket: Socket;
   private roomId: string;
@@ -48,35 +61,53 @@ export class WebRTCManager {
    * Start capturing screen and initiate WebRTC connections to all current peers in the room.
    */
   public async startScreenShare(targetSocketIds: string[]): Promise<MediaStream | null> {
-    if (typeof window === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
+    if (typeof window === "undefined" || isMobileOrUnsupportedDevice()) {
       const err = new Error("Screen sharing is not supported on this browser/device.");
+      err.name = "NotSupportedError";
       this.callbacks.onError?.(err);
       throw err;
     }
 
     try {
-      // Capture screen with high-fidelity stereo audio, disabling VoIP voice suppression
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            displaySurface: "browser",
-          } as MediaTrackConstraints,
+      const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      const isFirefox = /firefox/i.test(ua);
+
+      // Setup display capture options
+      // Safari and Firefox do not support display media audio and throw errors if audio constraints are provided
+      let displayOptions: DisplayMediaStreamOptions;
+      if (isSafari || isFirefox) {
+        displayOptions = {
+          video: true,
+          audio: false,
+        };
+      } else {
+        // Chromium (Chrome, Edge, Brave, Opera) supports high-fidelity audio capture without VoIP suppression
+        displayOptions = {
+          video: true,
           audio: {
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false,
-            channelCount: 2,
-          } as MediaTrackConstraints,
-        });
-      } catch {
-        // Fallback for browser engines that do not accept advanced audio constraints
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            displaySurface: "browser",
-          } as MediaTrackConstraints,
-          audio: true,
-        });
+          },
+        };
+      }
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
+      } catch (displayErr) {
+        // If constraint validation failed synchronously before picker prompt, retry with standard video-only constraints
+        if (
+          displayErr instanceof Error &&
+          (displayErr.name === "TypeError" ||
+            displayErr.name === "NotSupportedError" ||
+            displayErr.name === "OverconstrainedError")
+        ) {
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        } else {
+          throw displayErr;
+        }
       }
 
       this.localStream = stream;
@@ -102,8 +133,13 @@ export class WebRTCManager {
 
       return stream;
     } catch (err: unknown) {
-      if (err instanceof Error && err.name !== "NotAllowedError") {
+      if (err instanceof Error) {
+        if (err.name === "NotAllowedError" || err.message.includes("Permission denied")) {
+          // User dismissed or cancelled the browser's screen picker dialog
+          return null;
+        }
         this.callbacks.onError?.(err);
+        throw err;
       }
       return null;
     }

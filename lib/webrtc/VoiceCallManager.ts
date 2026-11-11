@@ -185,7 +185,7 @@ export class VoiceCallManager {
             googNoiseSuppression: { ideal: true },
             googHighpassFilter: { ideal: true }, // Cuts low-frequency rumble and mic pops
             googTypingNoiseDetection: { ideal: true },
-          } as any),
+          } as Record<string, unknown>),
         },
         video: false,
       });
@@ -288,7 +288,7 @@ export class VoiceCallManager {
   ): Promise<void> {
     if (!this.localStream || !signal) return;
 
-    const sig = signal as Record<string, any>;
+    const sig = signal as Record<string, unknown>;
 
     // 1. Process SDP Offer / Answer
     const sdp = (sig.sdp || (sig.type === "offer" || sig.type === "answer" ? sig : null)) as RTCSessionDescriptionInit | null;

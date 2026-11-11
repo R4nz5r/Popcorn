@@ -48,6 +48,12 @@ export default function ScreenSharePlayer({
       setIsBuffering(true);
     };
 
+    // Check if video is already ready or playing
+    if (video.readyState >= 2 || !video.paused) {
+      setLoadedStreamId(stream?.id || "loaded");
+      setIsBuffering(false);
+    }
+
     video.addEventListener("loadeddata", handleLoadedData);
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("waiting", handleWaiting);
@@ -59,13 +65,19 @@ export default function ScreenSharePlayer({
     };
   }, [stream]);
 
+  // Attach stream to video element safely without re-attaching on volume/mute changes
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !stream) return;
 
-    video.srcObject = stream;
-    video.muted = effectiveMuted;
-    video.volume = volume / 100;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+
+    if (video.readyState >= 2 || !video.paused) {
+      setLoadedStreamId(stream.id || "loaded");
+      setIsBuffering(false);
+    }
 
     video
       .play()
@@ -77,7 +89,15 @@ export default function ScreenSharePlayer({
           video.play().catch(() => {});
         }
       });
-  }, [stream, effectiveMuted, volume]);
+  }, [stream]);
+
+  // Synchronize mute and volume without re-attaching stream or resetting decoder
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = effectiveMuted;
+    video.volume = volume / 100;
+  }, [effectiveMuted, volume]);
 
   const handleToggleMute = () => {
     if (isPresenter) return;

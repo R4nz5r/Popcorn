@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import { PeerUser, VoicePeerUser } from "@/lib/socket";
 import { VoiceCallManager } from "@/lib/webrtc/VoiceCallManager";
 
@@ -100,14 +100,18 @@ export default function ParticipantList({
     if (!selectedUserId || !voiceManager) return;
     const targetPeer = voiceUsers?.find((v) => v.userId === selectedUserId);
     if (targetPeer) {
-      setUserVolumes((prev) => ({
-        ...prev,
-        [selectedUserId]: voiceManager.getPeerVolume(targetPeer.socketId),
-      }));
-      setLocalMuted((prev) => ({
-        ...prev,
-        [selectedUserId]: voiceManager.isPeerLocallyMuted(targetPeer.socketId),
-      }));
+      const vol = voiceManager.getPeerVolume(targetPeer.socketId);
+      const isMuted = voiceManager.isPeerLocallyMuted(targetPeer.socketId);
+      queueMicrotask(() => {
+        setUserVolumes((prev) => ({
+          ...prev,
+          [selectedUserId]: vol,
+        }));
+        setLocalMuted((prev) => ({
+          ...prev,
+          [selectedUserId]: isMuted,
+        }));
+      });
     }
   }, [selectedUserId, voiceManager, voiceUsers]);
 

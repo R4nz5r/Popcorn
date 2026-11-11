@@ -41,7 +41,9 @@ export default function FloatingReactions({
   useEffect(() => {
     if (!enabled) return;
     if (incomingReaction) {
-      addReactionBubble(incomingReaction.emoji, incomingReaction.sender);
+      queueMicrotask(() => {
+        addReactionBubble(incomingReaction.emoji, incomingReaction.sender);
+      });
     }
   }, [incomingReaction, addReactionBubble, enabled]);
 

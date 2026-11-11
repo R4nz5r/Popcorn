@@ -23,7 +23,7 @@ import {
 import YouTubePlayer from "@/components/player/YouTubePlayer";
 import PlaybackControls from "@/components/player/PlaybackControls";
 import ScreenSharePlayer from "@/components/player/ScreenSharePlayer";
-import { WebRTCManager } from "@/lib/webrtc/WebRTCManager";
+import { WebRTCManager, isMobileOrUnsupportedDevice } from "@/lib/webrtc/WebRTCManager";
 import { VoiceCallManager } from "@/lib/webrtc/VoiceCallManager";
 import VoiceControls from "@/components/voice/VoiceControls";
 import VoiceSettingsModal from "@/components/voice/VoiceSettingsModal";
@@ -116,6 +116,7 @@ export default function RoomPage() {
   const [typingPeers, setTypingPeers] = useState<TypingUser[]>([]);
   const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const voiceManagerRef = useRef<VoiceCallManager | null>(null);
+  const [activeVoiceManager, setActiveVoiceManager] = useState<VoiceCallManager | null>(null);
 
   const handleToggleReactionsEnabled = useCallback(() => {
     setAreReactionsEnabled((prev) => {
@@ -731,6 +732,7 @@ export default function RoomPage() {
       if (voiceManagerRef.current) {
         voiceManagerRef.current.destroy();
         voiceManagerRef.current = null;
+        setActiveVoiceManager(null);
       }
       if (rateResetTimerRef.current) {
         clearTimeout(rateResetTimerRef.current);
@@ -903,6 +905,21 @@ export default function RoomPage() {
     }
   };
 
+  const handleToggleVoiceMute = () => {
+    if (!voiceManagerRef.current) return;
+    const nextMuted = !isVoiceMuted;
+    voiceManagerRef.current.setMuted(nextMuted);
+    setIsVoiceMuted(nextMuted);
+    if (nextMuted) {
+      soundFx.playMute();
+    } else {
+      soundFx.playUnmute();
+    }
+    if (isVoiceDeafened && !nextMuted) {
+      setIsVoiceDeafened(false);
+    }
+  };
+
   // 5. Desktop Keyboard Shortcuts (Space: Play/Pause, M: Mic Toggle, F: Fullscreen, Left/Right: Seek 5s)
   useEffect(() => {
     function handleKeyDownShortcuts(e: KeyboardEvent) {
@@ -1055,7 +1072,13 @@ export default function RoomPage() {
   };
 
   const handleToggleScreenShare = async () => {
-    if (!currentUser || !socketRef.current?.connected) return;
+    // 1. Immediately show notice modal if user is on mobile/tablet or lacking screen capture capability
+    if (isMobileOrUnsupportedDevice()) {
+      setIsScreenShareNoticeOpen(true);
+      return;
+    }
+
+    if (!currentUser) return;
 
     // If local user is currently sharing: stop
     if (screenSharer?.userId === currentUser.userId) {
@@ -1070,9 +1093,9 @@ export default function RoomPage() {
       return;
     }
 
-    // Check if browser/device supports screen sharing
-    if (typeof window !== "undefined" && !navigator.mediaDevices?.getDisplayMedia) {
-      setIsScreenShareNoticeOpen(true);
+    // If socket is disconnected, try reconnecting
+    if (!socketRef.current?.connected) {
+      socketRef.current?.connect();
       return;
     }
 
@@ -1126,6 +1149,7 @@ export default function RoomPage() {
         },
       });
       voiceManagerRef.current = vm;
+      setActiveVoiceManager(vm);
       await vm.joinVoice(existingSocketIds);
       setIsInVoice(true);
       setIsVoiceMuted(false);
@@ -1135,6 +1159,7 @@ export default function RoomPage() {
       console.error("[Voice] Join error:", err);
       voiceManagerRef.current?.destroy();
       voiceManagerRef.current = null;
+      setActiveVoiceManager(null);
       setIsInVoice(false);
       const msg = err instanceof Error ? err.message : "Failed to join voice.";
       alert(msg);
@@ -1147,27 +1172,13 @@ export default function RoomPage() {
     if (voiceManagerRef.current) {
       voiceManagerRef.current.leaveVoice();
       voiceManagerRef.current = null;
+      setActiveVoiceManager(null);
     }
     soundFx.playVoiceLeave();
     setIsInVoice(false);
     setIsVoiceMuted(false);
     setIsVoiceDeafened(false);
     setIsLocalSpeaking(false);
-  };
-
-  const handleToggleVoiceMute = () => {
-    if (!voiceManagerRef.current) return;
-    const nextMuted = !isVoiceMuted;
-    voiceManagerRef.current.setMuted(nextMuted);
-    setIsVoiceMuted(nextMuted);
-    if (nextMuted) {
-      soundFx.playMute();
-    } else {
-      soundFx.playUnmute();
-    }
-    if (isVoiceDeafened && !nextMuted) {
-      setIsVoiceDeafened(false);
-    }
   };
 
   const handleToggleVoiceDeafen = () => {
@@ -1918,7 +1929,7 @@ export default function RoomPage() {
               currentUserName={currentUser?.displayName}
               currentUserColor={currentUser?.avatarColor}
               voiceUsers={voiceUsers}
-              voiceManager={voiceManagerRef.current}
+              voiceManager={activeVoiceManager}
               isHost={isHost}
               onHostMuteUser={handleHostMuteUser}
               onHostMuteAll={handleHostMuteAll}
@@ -1932,7 +1943,7 @@ export default function RoomPage() {
       <VoiceSettingsModal
         isOpen={isVoiceSettingsOpen}
         onClose={() => setIsVoiceSettingsOpen(false)}
-        voiceManager={voiceManagerRef.current}
+        voiceManager={activeVoiceManager}
         voiceUsers={voiceUsers}
         currentUserId={currentUser?.userId}
         isHost={isHost}
